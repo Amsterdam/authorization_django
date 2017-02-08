@@ -6,14 +6,10 @@
 *.pyc
 **/__pycache__
 
-# Pipenv
-.venv
-
-# Sphinx
-docs/_build
-
 # Pytest coverage
 .coverage
 
 # Setuptools
 *.egg-info
+.eggs
+dist

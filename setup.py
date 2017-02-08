@@ -1,15 +1,16 @@
-#!/usr/bin/env python
+""" setuptools config
+"""
 
 from setuptools import setup
 
-py_modules = ['tokenauthz']
-requires = ['Django==1.10.3', 'djangorestframework==3.5.3', 'PyJWT==1.4.2']
+py_modules = ['tokenmiddleware']
+requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
 
 setup(
-    name='datapunt-django-tokenauthz',
-    version='0.1.0.dev1',
+    name='datapunt-authorization-django',
+    version='0.1.0',
     description='Datapunt authorization check for Django',
-    url='https://github.com/DatapuntAmsterdam/django-tokenauthz',
+    url='https://github.com/DatapuntAmsterdam/authorization_django',
     author='Amsterdam Datapunt',
     author_email='datapunt.ois@amsterdam.nl',
     license='Mozilla Public License Version 2.0',
