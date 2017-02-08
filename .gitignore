@@ -1,0 +1,19 @@
+# For PyDev (Eclipse)
+.project
+.pydevproject
+
+# Python bytecode and cache
+*.pyc
+**/__pycache__
+
+# Pipenv
+.venv
+
+# Sphinx
+docs/_build
+
+# Pytest coverage
+.coverage
+
+# Setuptools
+*.egg-info
