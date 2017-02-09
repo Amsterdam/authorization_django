@@ -14,18 +14,18 @@ Install
 
 Install the Django middleware:
 
-```
-pip install datapunt-authorization-django
-```
+::
+
+	pip install datapunt-authorization-django
 
 Add `tokenmidleware.authorization_middleware` to the list of middlewares in `settings.py`:
 
-```
-MIDDLEWARE = (
-    ...
-    'tokenmiddleware.authorization_middleware',
-)
-```
+::
+
+	MIDDLEWARE = (
+    	...
+    	'tokenmiddleware.authorization_middleware',
+	)
 
 __Note that `tokenmidleware.authorization_middleware` is [a ‘new style’
 middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/),
@@ -55,13 +55,13 @@ Contribute
 
 Activate your virtualenv, install the egg in `editable` mode, and start coding:
 
-```
-$ source env/bin/activate
-$ pip install -e .
-```
+::
+
+	$ source env/bin/activate
+	$ pip install -e .
 
 Testing:
 
-```
-make test
-```
+::
+
+	make test
