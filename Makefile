@@ -1,4 +1,5 @@
 RM = rm -rf
+.PHONY: release build test clean distclean
 
 release: clean test
 	python setup.py sdist upload

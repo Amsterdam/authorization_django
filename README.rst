@@ -18,16 +18,16 @@ Install the Django middleware:
 
 	pip install datapunt-authorization-django
 
-Add `tokenmidleware.authorization_middleware` to the list of middlewares in `settings.py`:
+Add `authorization_django.authorization_middleware` to the list of middlewares in `settings.py`:
 
 ::
 
 	MIDDLEWARE = (
     	...
-    	'tokenmiddleware.authorization_middleware',
+    	'authorization_django.authorization_middleware',
 	)
 
-__Note that `tokenmidleware.authorization_middleware` is [a ‘new style’
+__Note that `authorization_django.authorization_middleware` is [a ‘new style’
 middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/),
 hence the `MIDDLEWARE` setting rather than `MIDDLEWARE_CLASSES`.__
 
@@ -41,11 +41,11 @@ that will tell you whether the current request is authorized for the given
 
 ::
 
-	import authorization_levels
+	import authorization_django
 
-	if request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS):
+	if request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE_PLUS):
 		...  # return super secret things
-	elif request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE):
+	elif request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE):
 		...  # return a little less secret things
 	else:
 		...  # only the public stuff
