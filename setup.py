@@ -3,12 +3,13 @@
 
 from setuptools import setup
 
-py_modules = ['tokenmiddleware']
+version = '0.2.0.rc1'
+py_modules = ['authorization_django']
 requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
 
 setup(
     name='datapunt-authorization-django',
-    version='0.1.0',
+    version=version,
     description='Datapunt authorization check for Django',
     url='https://github.com/DatapuntAmsterdam/authorization_django',
     author='Amsterdam Datapunt',
