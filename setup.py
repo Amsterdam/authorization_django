@@ -3,6 +3,9 @@
 
 from setuptools import setup
 
+py_modules = ['tokenmiddleware']
+requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
+
 setup(
     name='datapunt-authorization-django',
     version='0.1.0',
@@ -22,10 +25,6 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
-    py_modules=['authorization_django'],
-    install_requires=[
-        'datapunt-authorization-levels',
-        'Django>=1.10.3',
-        'PyJWT>=1.4.2'
-    ]
+    py_modules=py_modules,
+    install_requires=requires,
 )
