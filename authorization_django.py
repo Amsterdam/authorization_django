@@ -10,8 +10,10 @@ from django.conf import settings
 from django.core import exceptions
 import jwt
 
-import authorization_levels
-
+import authorization_levels as levels
+"""
+`levels` is part of the public interface of this module.
+"""
 
 def authorization_middleware(get_response):
     """ Django middleware to parse incoming access tokens, validate them and
@@ -32,6 +34,10 @@ def authorization_middleware(get_response):
 
     :param get_response: callable that creates the response object
     :return: response
+    :todo:
+        Nested function 'middleware' allows both 'JWT' (not IANA-registered) and
+        'Bearer' as Authorization header prefix; f we stop using Django's JWT
+        plugin, this should be cleaned.
     """
     key = settings.JWT_SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
@@ -39,15 +45,17 @@ def authorization_middleware(get_response):
                           'should be "JWT [token]"')
 
     def authorize_function(level):
-        """ Creates a partial around :func:`authorization_levels.is_authorized`
+        """ Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's authorization `level` (the `granted`
         parameter).
 
         :return func:
         """
-        return functools.partial(authorization_levels.is_authorized, level)
+        return functools.partial(levels.is_authorized, level)
 
     def middleware(request):
+        """ TODO: Documentation
+        """
         authorization = request.META.get('HTTP_AUTHORIZATION', '')
 
         if authorization:
@@ -56,8 +64,7 @@ def authorization_middleware(get_response):
                 prefix, token = authorization.split()
             except ValueError:
                 raise exceptions.SuspiciousOperation(invalid_format_msg)
-
-            if prefix != 'JWT':
+            if prefix not in ('JWT', 'Bearer',):
                 raise exceptions.SuspiciousOperation(invalid_format_msg)
 
             try:
@@ -69,7 +76,7 @@ def authorization_middleware(get_response):
 
         else:
             request.is_authorized_for = authorize_function(
-                authorization_levels.LEVEL_DEFAULT
+                levels.LEVEL_DEFAULT
             )
 
         response = get_response(request)
