@@ -3,7 +3,7 @@
 
 from setuptools import setup
 
-version = '0.2.0'
+version = '0.2.1'
 py_modules = ['authorization_django']
 requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
 

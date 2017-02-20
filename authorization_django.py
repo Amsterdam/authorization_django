@@ -15,6 +15,7 @@ import authorization_levels as levels
 `levels` is part of the public interface of this module.
 """
 
+
 def authorization_middleware(get_response):
     """ Django middleware to parse incoming access tokens, validate them and
     set an authorization function on the request.
@@ -35,9 +36,15 @@ def authorization_middleware(get_response):
     :param get_response: callable that creates the response object
     :return: response
     :todo:
-        Nested function 'middleware' allows both 'JWT' (not IANA-registered) and
-        'Bearer' as Authorization header prefix; f we stop using Django's JWT
-        plugin, this should be cleaned.
+        Two things needs to be done when we can completely remove the Django
+        JWT plugin:
+
+        - Nested function 'middleware' allows both 'JWT' (not IANA-registered)
+          and 'Bearer' as Authorization header prefix; JWT should not be
+          accepted.
+        - The Django JWT middleware does not include the authz claim, so this
+          plugin does not fail if it is not present; this behavior is wrong
+          when we no longer use the Django JWT plugin.
     """
     key = settings.JWT_SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
@@ -56,7 +63,7 @@ def authorization_middleware(get_response):
     def middleware(request):
         """ TODO: Documentation
         """
-        authorization = request.META.get('HTTP_AUTHORIZATION', '')
+        authorization = request.META.get('HTTP_AUTHORIZATION')
 
         if authorization:
 
@@ -64,6 +71,7 @@ def authorization_middleware(get_response):
                 prefix, token = authorization.split()
             except ValueError:
                 raise exceptions.SuspiciousOperation(invalid_format_msg)
+            # todo: do not allow JWT prefix
             if prefix not in ('JWT', 'Bearer',):
                 raise exceptions.SuspiciousOperation(invalid_format_msg)
 
@@ -72,12 +80,13 @@ def authorization_middleware(get_response):
             except jwt.InvalidTokenError as e:
                 raise exceptions.SuspiciousOperation() from e
 
-            request.is_authorized_for = authorize_function(decoded['authz'])
+            # todo: fail if authz is not present
+            authz = decoded.get('authz', levels.LEVEL_DEFAULT)
 
         else:
-            request.is_authorized_for = authorize_function(
-                levels.LEVEL_DEFAULT
-            )
+            authz = levels.LEVEL_DEFAULT
+
+        request.is_authorized_for = authorize_function(authz)
 
         response = get_response(request)
 
