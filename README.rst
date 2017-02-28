@@ -33,11 +33,10 @@ in `settings.py`, and add the JWT secret and algorithm:
     JWT_ALGORITHM = 'HS256'
 
 
-.. NOTE::
-   ``authorization_django.authorization_middleware`` is [a ‘new style’
-   middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/).
-   Make sure to add it to the ``MIDDLEWARE`` setting, **NOT** to the
-   ``MIDDLEWARE_CLASSES`` setting.
+> **NOTE** ``authorization_django.authorization_middleware`` is [a ‘new style’
+middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/).
+Make sure to add it to the ``MIDDLEWARE`` setting, **NOT** to the
+``MIDDLEWARE_CLASSES`` setting.
 
 Usage
 -----
