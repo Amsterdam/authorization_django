@@ -18,7 +18,10 @@ Install the Django middleware:
 
 	pip install datapunt-authorization-django
 
-Add `authorization_django.authorization_middleware` to the list of middlewares in `settings.py`:
+... and add it to your requirements.txt.
+
+Add `authorization_django.authorization_middleware` to the list of middlewares
+in `settings.py`, and add the JWT secret and algorithm:
 
 ::
 
@@ -26,11 +29,15 @@ Add `authorization_django.authorization_middleware` to the list of middlewares i
     	...
     	'authorization_django.authorization_middleware',
 	)
+	JWT_SECRET_KEY = os.getenv('JWT_SHARED_SECRET_KEY')
+    JWT_ALGORITHM = 'HS256'
 
-__Note that `authorization_django.authorization_middleware` is [a ‘new style’
-middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/),
-hence the `MIDDLEWARE` setting rather than `MIDDLEWARE_CLASSES`.__
 
+.. NOTE::
+   ``authorization_django.authorization_middleware`` is [a ‘new style’
+   middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/).
+   Make sure to add it to the ``MIDDLEWARE`` setting, **NOT** to the
+   ``MIDDLEWARE_CLASSES`` setting.
 
 Usage
 -----
@@ -57,7 +64,6 @@ Activate your virtualenv, install the egg in `editable` mode, and start coding:
 
 ::
 
-	$ source env/bin/activate
 	$ pip install -e .
 
 Testing:
