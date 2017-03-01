@@ -6,11 +6,9 @@ import time
 import types
 
 import jwt
-import pytest
 
 import authorization_django
 from django.conf import settings
-from django.core import exceptions
 
 from authorization_django import levels as authorization_levels
 
@@ -74,19 +72,25 @@ def test_valid_request():
 
 
 def test_expired_token_request():
-    with pytest.raises(exceptions.SuspiciousOperation):
-        middleware(expired_token_request)
+    response = middleware(expired_token_request)
+    assert response.status_code == 401
+    assert 'WWW-Authenticate' in response
+    assert 'invalid_token' in response['WWW-Authenticate']
 
 
 def test_invalid_token_request():
-    with pytest.raises(exceptions.SuspiciousOperation):
-        middleware(invalid_token_request)
+    response = middleware(invalid_token_request)
+    assert response.status_code == 401
+    assert 'WWW-Authenticate' in response
+    assert 'invalid_token' in response['WWW-Authenticate']
 
 
 def test_malformed_request():
     for malformed_request in malformed_requests:
-        with pytest.raises(exceptions.SuspiciousOperation):
-            middleware(malformed_request)
+        response = middleware(malformed_request)
+        assert response.status_code == 400
+        assert 'WWW-Authenticate' in response
+        assert 'invalid_request' in response['WWW-Authenticate']
 
 
 def test_no_authorization_header():

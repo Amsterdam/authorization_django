@@ -7,7 +7,7 @@
 import functools
 
 from django.conf import settings
-from django.core import exceptions
+from django import http
 import jwt
 
 import authorization_levels as levels
@@ -48,8 +48,6 @@ def authorization_middleware(get_response):
     """
     key = settings.JWT_SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
-    invalid_format_msg = ('Invalid Authorization header format;'
-                          'should be "JWT [token]"')
 
     def authorize_function(level):
         """ Creates a partial around :func:`levels.is_authorized`
@@ -59,6 +57,22 @@ def authorization_middleware(get_response):
         :return func:
         """
         return functools.partial(levels.is_authorized, level)
+
+    def invalid_token():
+        """ Returns an HttpResponse object with a 401
+        """
+        msg = 'Bearer realm="datapunt", error="invalid_token"'
+        response = http.HttpResponse('Unauthorized', status=401)
+        response['WWW-Authenticate'] = msg
+        return response
+
+    def invalid_request():
+        """ Returns an HttpResponse object with a 400
+        """
+        msg = "Bearer realm=\"datapunt\", error=\"invalid_request\", error_description=\"Invalid Authorization header format; should be 'Bearer [token]'\""
+        response = http.HttpResponse('Bad Request', status=400)
+        response['WWW-Authenticate'] = msg
+        return response
 
     def middleware(request):
         """ TODO: Documentation
@@ -70,15 +84,15 @@ def authorization_middleware(get_response):
             try:
                 prefix, token = authorization.split()
             except ValueError:
-                raise exceptions.SuspiciousOperation(invalid_format_msg)
+                return invalid_request()
             # todo: do not allow JWT prefix
             if prefix not in ('JWT', 'Bearer',):
-                raise exceptions.SuspiciousOperation(invalid_format_msg)
+                return invalid_request()
 
             try:
                 decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
-            except jwt.InvalidTokenError as e:
-                raise exceptions.SuspiciousOperation() from e
+            except jwt.InvalidTokenError:
+                return invalid_token()
 
             # todo: fail if authz is not present
             authz = decoded.get('authz', levels.LEVEL_DEFAULT)
