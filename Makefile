@@ -1,5 +1,5 @@
 RM = rm -rf
-.PHONY: release build test clean distclean
+.PHONY: release dist build test coverage clean distclean
 
 release: clean test
 	python setup.py sdist upload
@@ -11,7 +11,10 @@ build:
 	python setup.py build
 
 test:
-	python setup.py test
+	python setup.py test -a "-p no:cacheprovider --verbose ."
+
+coverage:
+	python setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc ."
 
 clean:
 	@$(RM) build/ *.egg-info/

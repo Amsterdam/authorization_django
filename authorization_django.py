@@ -1,6 +1,6 @@
 """
-    datapunt.token
-    ~~~~~~~~~~~~~~
+    authorization_django
+    ~~~~~~~~~~~~~~~~~~~~
 
     Authorization middleware for Django.
 """
