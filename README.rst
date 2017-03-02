@@ -70,5 +70,3 @@ Testing:
 ::
 
 	make test
-
-test
