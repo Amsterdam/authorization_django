@@ -2,7 +2,7 @@
     authorization_django
     ~~~~~~~~~~~~~~~~~~~~
 
-    Authorization middleware for Django.
+    Authorization middleware that uses JWTs for authentication.
 """
 import functools
 
@@ -19,8 +19,6 @@ import authorization_levels as levels
 def authorization_middleware(get_response):
     """ Django middleware to parse incoming access tokens, validate them and
     set an authorization function on the request.
-
-    :todo: don't allow requests without a token
 
     The decision to use a generic middleware rather than an
     AuthenticationMiddleware is explicitly made, because inctances of the
@@ -75,7 +73,8 @@ def authorization_middleware(get_response):
         return response
 
     def middleware(request):
-        """ TODO: Documentation
+        """ Parses the Authorization header, decodes and validates the JWT and
+        adds the is_authorized_for function to the request.
         """
         authorization = request.META.get('HTTP_AUTHORIZATION')
 

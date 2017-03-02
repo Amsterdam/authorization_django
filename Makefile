@@ -19,7 +19,7 @@ coverage: clean
 	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc ."
 
 clean:
-	@$(RM) build/ *.egg-info/ .eggs/
+	@$(RM) build/ *.egg-info/ .eggs/ dist/
 	@find . \( \
 		-iname "*.pyc" \
 		-or -iname "*.pyo" \
