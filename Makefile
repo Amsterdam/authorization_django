@@ -1,23 +1,25 @@
-RM = rm -rf
 .PHONY: release dist build test coverage clean distclean
 
+PYTHON = python3
+RM = rm -rf
+
 release: clean test
-	python setup.py sdist upload
+	$(PYTHON) setup.py sdist upload
 
 dist: clean
-	python setup.py sdist
+	$(PYTHON) setup.py sdist
 
 build:
-	python setup.py build
+	$(PYTHON) setup.py build
 
-test:
-	python setup.py test -a "-p no:cacheprovider --verbose ."
+test: clean
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose ."
 
-coverage:
-	python setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc ."
+coverage: clean
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc ."
 
 clean:
-	@$(RM) build/ *.egg-info/
+	@$(RM) build/ *.egg-info/ .eggs/
 	@find . \( \
 		-iname "*.pyc" \
 		-or -iname "*.pyo" \
