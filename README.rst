@@ -21,7 +21,12 @@ Install the Django middleware:
 ... and add it to your requirements.txt.
 
 Add `authorization_django.authorization_middleware` to the list of middlewares
-in `settings.py`, and add the JWT secret and algorithm:
+in `settings.py`, and add the JWT secret and algorithm.
+
+    **NOTE** ``authorization_django.authorization_middleware`` is [a ‘new style’
+    middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/).
+    Make sure to add it to the ``MIDDLEWARE`` setting, **NOT** to the
+    ``MIDDLEWARE_CLASSES`` setting.
 
 ::
 
@@ -29,14 +34,34 @@ in `settings.py`, and add the JWT secret and algorithm:
     	...
     	'authorization_django.authorization_middleware',
 	)
-	JWT_SECRET_KEY = os.getenv('JWT_SHARED_SECRET_KEY')
-    JWT_ALGORITHM = 'HS256'
 
 
-> **NOTE** ``authorization_django.authorization_middleware`` is [a ‘new style’
-middleware](https://docs.djangoproject.com/en/1.10/topics/http/middleware/).
-Make sure to add it to the ``MIDDLEWARE`` setting, **NOT** to the
-``MIDDLEWARE_CLASSES`` setting.
+
+Settings
+--------
+
+The following settings are used by the middleware, and can be configured in
+your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
+
+.. tabularcolumns:: |p{6.5cm}|p{8.5cm}|
+
+================================= =========================================
+``JWT_SECRET_KEY``                (Required) Your JWT signing key
+``JWT_ALGORITHM``                 (Required) Algorithm to use for the JWT
+                                  message authentication code (MAC)
+``LOGGER_NAME``                   Name of the logger. (Default =
+                                  ``authorization_django``)
+``LOGGER_HANDLER_POLICY``         the policy of the default logging
+                                  handler.  The default is ``'always'``
+                                  which means that the default logging
+                                  handler is always active.  ``'debug'``
+                                  will only activate logging in debug
+                                  mode, ``'production'`` will only log in
+                                  production and ``'never'`` disables it
+                                  entirely.
+``LOGGER_FORMAT_PROD``            Log format for production messages
+``LOGGER_FORMAT_DEBUG``           Log format for debug messages
+
 
 Usage
 -----

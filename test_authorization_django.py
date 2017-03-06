@@ -2,19 +2,21 @@
     test_authorization_django
     ~~~~~~~~~~~~~~~~~~~~~~~~~
 """
+import logging
 import time
 import types
 
 import jwt
+import pytest
 
-import authorization_django
 from django.conf import settings
-
+import authorization_django
 from authorization_django import levels as authorization_levels
 
 TESTSETTINGS = {
     'JWT_SECRET_KEY': 'testkey',
-    'JWT_ALGORITHM': 'HS256'
+    'JWT_ALGORITHM': 'HS256',
+    'LOGGER_NAME': 'authztest'
 }
 
 
@@ -57,35 +59,44 @@ malformed_requests = (
     ),
 )
 
-settings.configure(**TESTSETTINGS)
+settings.configure(DEBUG=True)
 
 
 def get_response(request):
     return True
 
-middleware = authorization_django.authorization_middleware(get_response)
+
+@pytest.fixture()
+def middleware():
+    settings.DATAPUNT_AUTHZ = TESTSETTINGS
+    return authorization_django.authorization_middleware(get_response)
 
 
-def test_valid_request():
+def test_not_configured():
+    with pytest.raises(authorization_django.AuthzConfigurationError):
+        authorization_django.authorization_middleware(None)
+
+
+def test_valid_request(middleware):
     middleware(correct_request)
     assert correct_request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
 
 
-def test_expired_token_request():
+def test_expired_token_request(middleware):
     response = middleware(expired_token_request)
     assert response.status_code == 401
     assert 'WWW-Authenticate' in response
     assert 'invalid_token' in response['WWW-Authenticate']
 
 
-def test_invalid_token_request():
+def test_invalid_token_request(middleware):
     response = middleware(invalid_token_request)
     assert response.status_code == 401
     assert 'WWW-Authenticate' in response
     assert 'invalid_token' in response['WWW-Authenticate']
 
 
-def test_malformed_request():
+def test_malformed_request(middleware):
     for malformed_request in malformed_requests:
         response = middleware(malformed_request)
         assert response.status_code == 400
@@ -93,9 +104,15 @@ def test_malformed_request():
         assert 'invalid_request' in response['WWW-Authenticate']
 
 
-def test_no_authorization_header():
+def test_no_authorization_header(middleware):
     empty_request = types.SimpleNamespace(META={})
     middleware(empty_request)
     assert not empty_request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
     assert not empty_request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE)
     assert empty_request.is_authorized_for(authorization_levels.LEVEL_DEFAULT)
+
+
+def test_unknown_config_param():
+    settings.DATAPUNT_AUTHZ['lalaland'] = 'oscar'
+    with pytest.raises(authorization_django.AuthzConfigurationError):
+        authorization_django.authorization_middleware(None)
