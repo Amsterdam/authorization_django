@@ -95,3 +95,12 @@ Testing:
 ::
 
 	make test
+
+
+Changelog
+---------
+
+- v0.2.3 (to be released)
+
+  * Settings are now grouped in settings.py (see Settings section above)
+  * Middleware now creates audit logs
