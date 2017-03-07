@@ -13,10 +13,10 @@ build:
 	$(PYTHON) setup.py build
 
 test: clean
-	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose ."
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --capture=no ."
 
 coverage: clean
-	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc ."
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no ."
 
 clean:
 	@$(RM) build/ *.egg-info/ .eggs/ dist/

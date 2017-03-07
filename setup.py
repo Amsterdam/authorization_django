@@ -33,7 +33,7 @@ with open('README.rst', encoding='utf-8') as f:
 version = '0.2.2'
 py_modules = ['authorization_django']
 requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
-requires_test = ['pytest==3.0.5', 'pytest-cov==2.4.0', 'pytest-capturelog==0.7']
+requires_test = ['pytest==3.0.5', 'pytest-cov==2.4.0']
 requires_extras = {
     'dev': [] + requires_test,
 }

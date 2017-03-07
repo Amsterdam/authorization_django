@@ -2,7 +2,6 @@
     test_authorization_django
     ~~~~~~~~~~~~~~~~~~~~~~~~~
 """
-import logging
 import time
 import types
 
@@ -42,12 +41,13 @@ correct_request = create_request(
     tokendata_correct, TESTSETTINGS['JWT_SECRET_KEY'], TESTSETTINGS['JWT_ALGORITHM']
 )
 
-expired_token_request = create_request(
-    tokendata_expired, TESTSETTINGS['JWT_SECRET_KEY'], TESTSETTINGS['JWT_ALGORITHM']
-)
-
-invalid_token_request = create_request(
-    tokendata_correct, 'INVALID_KEY', TESTSETTINGS['JWT_ALGORITHM']
+invalid_token_requests = (
+    create_request(
+        tokendata_correct, 'INVALID_KEY', TESTSETTINGS['JWT_ALGORITHM']
+    ),
+    create_request(
+        tokendata_expired, TESTSETTINGS['JWT_SECRET_KEY'], TESTSETTINGS['JWT_ALGORITHM']
+    )
 )
 
 malformed_requests = (
@@ -82,26 +82,24 @@ def test_valid_request(middleware):
     assert correct_request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
 
 
-def test_expired_token_request(middleware):
-    response = middleware(expired_token_request)
-    assert response.status_code == 401
-    assert 'WWW-Authenticate' in response
-    assert 'invalid_token' in response['WWW-Authenticate']
+def test_invalid_token_requests(middleware, capfd):
+    for invalid_token_request in invalid_token_requests:
+        response = middleware(invalid_token_request)
+        assert response.status_code == 401
+        assert 'WWW-Authenticate' in response
+        assert 'invalid_token' in response['WWW-Authenticate']
+        _, err = capfd.readouterr()
+        assert 'Invalid JWT token' in err
 
 
-def test_invalid_token_request(middleware):
-    response = middleware(invalid_token_request)
-    assert response.status_code == 401
-    assert 'WWW-Authenticate' in response
-    assert 'invalid_token' in response['WWW-Authenticate']
-
-
-def test_malformed_request(middleware):
+def test_malformed_requests(middleware, capfd):
     for malformed_request in malformed_requests:
         response = middleware(malformed_request)
         assert response.status_code == 400
         assert 'WWW-Authenticate' in response
         assert 'invalid_request' in response['WWW-Authenticate']
+        _, err = capfd.readouterr()
+        assert 'Invalid Authorization header' in err
 
 
 def test_no_authorization_header(middleware):

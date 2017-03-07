@@ -179,6 +179,7 @@ def authorization_middleware(get_response):
                 return invalid_request()
             # todo: do not allow JWT prefix
             if prefix not in ('JWT', 'Bearer',):
+                logger.warning('Invalid Authorization header: {}'.format(authorization))
                 return invalid_request()
 
             try:
