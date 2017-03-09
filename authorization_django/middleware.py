@@ -1,93 +1,29 @@
 """
-    authorization_django
-    ~~~~~~~~~~~~~~~~~~~~
-
-    Authorization middleware that uses JWTs for authentication.
-
-    The following settings are used by the middleware, and can be configured in
-    your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
-
-    .. tabularcolumns:: |p{6.5cm}|p{8.5cm}|
-
-    ================================= =========================================
-    ``JWT_SECRET_KEY``                (Required) Your JWT signing key
-    ``JWT_ALGORITHM``                 (Required) Algorithm to use for the JWT
-                                      message authentication code (MAC)
-    ``LOGGER_NAME``                   Name of the logger. (Default =
-                                      ``authorization_django``)
-    ``LOGGER_LEVEL``                  Log level. Will be overwritten if running
-                                      debug mode. (Default = ``INFO``)
-    ``LOGGER_FORMAT``                 Log format
-    ``LOGGER_FORMAT_DEBUG``           Log format for messages in debug mode
-
+    authorization_django.middleware
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 import functools
 import logging
 import sys
 
-from django.conf import settings
+import authorization_levels as levels
 from django import http
+from django.conf import settings as django_settings
 import jwt
 
-import authorization_levels as levels
-"""
-`levels` is part of the public interface of this module.
-"""
-
-_required_setting_sentinel = object()
-_settings_key = 'DATAPUNT_AUTHZ'
-_available_settings = {
-    'JWT_SECRET_KEY': _required_setting_sentinel,
-    'JWT_ALGORITHM': _required_setting_sentinel,
-    'LOGGER_NAME': __name__,
-    'LOGGER_LEVEL': logging.INFO,
-    'LOGGER_FORMAT': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
-    'LOGGER_FORMAT_DEBUG': (
-        '-' * 80 + '\n' +
-        '%(levelname)s in %(module)s [%(pathname)s:%(lineno)d]:\n' +
-        '%(message)s\n' +
-        '-' * 80
-    )
-}
-_available_settings_keys = set(_available_settings.keys())
-_required_settings_keys = {
-    key for key in _available_settings if _available_settings[key] is _required_setting_sentinel
-}
-
-
-class AuthzConfigurationError(Exception):
-    """ Error for missing / wrong configuration
-    """
-
-
-def _middleware_settings():
-    """ Fetch the middleware settings.
-
-    :return dict: settings
-    """
-    # Get the user-provided settings
-    user_settings = dict(getattr(settings, _settings_key, {}))
-    user_settings_keys = set(user_settings.keys())
-    # Check for required but missing settings
-    missing = _required_settings_keys - user_settings_keys
-    if missing:
-        raise AuthzConfigurationError('Missing required config params in {}: {}'.format(_settings_key, missing))
-    # Check for unknown settings
-    unknown = user_settings_keys - _available_settings_keys
-    if unknown:
-        raise AuthzConfigurationError('Unknown config params in {}: {}'.format(_settings_key, unknown))
-    # Merge defaults with provided settings
-    defaults = _available_settings_keys - user_settings_keys
-    user_settings.update({key: _available_settings[key] for key in defaults})
-
-    return user_settings
+from .config import settings
 
 
 def _create_logger(middleware_settings):
     """ Creates a logger using the given settings.
     """
-    level = (settings.DEBUG and logging.DEBUG) or middleware_settings['LOGGER_LEVEL']
-    formatter = logging.Formatter((settings.DEBUG and middleware_settings['LOGGER_FORMAT_DEBUG']) or middleware_settings['LOGGER_FORMAT'])
+    if django_settings.DEBUG:
+        level = logging.DEBUG
+        formatter = logging.Formatter(
+            middleware_settings['LOGGER_FORMAT_DEBUG'])
+    else:
+        level = middleware_settings['LOGGER_LEVEL']
+        formatter = logging.Formatter(middleware_settings['LOGGER_FORMAT'])
 
     handler = logging.StreamHandler(sys.stderr)
     handler.setLevel(level)
@@ -95,6 +31,8 @@ def _create_logger(middleware_settings):
 
     logger = logging.getLogger(middleware_settings['LOGGER_NAME'])
 
+    # If in some strange way this logger already exists we make sure to delete
+    # its existing handlers
     del logger.handlers[:]
 
     logger.addHandler(handler)
@@ -133,7 +71,7 @@ def authorization_middleware(get_response):
           plugin does not fail if it is not present; this behavior is wrong
           when we no longer use the Django JWT plugin.
     """
-    middleware_settings = _middleware_settings()
+    middleware_settings = settings()
     logger = _create_logger(middleware_settings)
 
     key = middleware_settings['JWT_SECRET_KEY']
@@ -159,7 +97,10 @@ def authorization_middleware(get_response):
     def invalid_request():
         """ Returns an HttpResponse object with a 400
         """
-        msg = "Bearer realm=\"datapunt\", error=\"invalid_request\", error_description=\"Invalid Authorization header format; should be 'Bearer [token]'\""
+        msg = (
+            "Bearer realm=\"datapunt\", error=\"invalid_request\", "
+            "error_description=\"Invalid Authorization header format; should be"
+            "'Bearer [token]'\"")
         response = http.HttpResponse('Bad Request', status=400)
         response['WWW-Authenticate'] = msg
         return response
@@ -175,11 +116,13 @@ def authorization_middleware(get_response):
             try:
                 prefix, token = authorization.split()
             except ValueError:
-                logger.warning('Invalid Authorization header: {}'.format(authorization))
+                logger.warning(
+                    'Invalid Authorization header: {}'.format(authorization))
                 return invalid_request()
             # todo: do not allow JWT prefix
             if prefix not in ('JWT', 'Bearer',):
-                logger.warning('Invalid Authorization header: {}'.format(authorization))
+                logger.warning(
+                    'Invalid Authorization header: {}'.format(authorization))
                 return invalid_request()
 
             try:

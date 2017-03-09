@@ -30,8 +30,8 @@ class PyTest(TestCommand):
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
-version = '0.2.3'
-py_modules = ['authorization_django']
+version = '0.2.4'
+packages = ['authorization_django']
 requires = ['datapunt-authorization-levels', 'Django>=1.10.3', 'PyJWT>=1.4.2']
 requires_test = ['pytest==3.0.5', 'pytest-cov==2.4.0']
 requires_extras = {
@@ -58,7 +58,7 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     cmdclass={'test': PyTest},
-    py_modules=py_modules,
+    packages=packages,
     install_requires=requires,
     tests_require=requires_test,
     extras_require=requires_extras,
