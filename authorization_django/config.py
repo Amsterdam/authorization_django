@@ -61,11 +61,13 @@ def _rectify(settings):
             new_value = rectifier['func'](settings[key])
             if not new_value:
                 raise AuthzConfigurationError(
-                    'Error validating settings: {}'.format(rectifier['errmsg']))
+                    'Error validating {}->{}: {}'.format(
+                        _settings_key, key, rectifier['errmsg']))
             settings[key] = new_value
         except:
             raise AuthzConfigurationError(
-                'Error validating settings: {}'.format(rectifier['errmsg']))
+                'Error validating {}->{}: {}'.format(
+                    _settings_key, key, rectifier['errmsg']))
 
 
 def settings():
