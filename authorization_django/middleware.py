@@ -99,8 +99,8 @@ def authorization_middleware(get_response):
         """
         msg = (
             "Bearer realm=\"datapunt\", error=\"invalid_request\", "
-            "error_description=\"Invalid Authorization header format; should be"
-            "'Bearer [token]'\"")
+            "error_description=\"Invalid Authorization header format; "
+            "should be: 'Bearer [token]'\"")
         response = http.HttpResponse('Bad Request', status=400)
         response['WWW-Authenticate'] = msg
         return response
