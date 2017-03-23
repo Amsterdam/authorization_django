@@ -23,6 +23,10 @@ settings.configure(DEBUG=True)
 
 
 def create_request(tokendata, key, alg, prefix='Bearer'):
+    """ Django WSGI Request mock. A Django request object contains a META dict
+    that contains the HTTP headers per the WSGI spec, PEP333 (meaning,
+    uppercase, prefixed with HTTP_ and dashes transformed to underscores).
+    """
     return types.SimpleNamespace(META={
         'HTTP_AUTHORIZATION': "{} {}".format(prefix, str(
             jwt.encode(tokendata, key, algorithm=alg), 'utf-8'))
