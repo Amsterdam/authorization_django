@@ -2,7 +2,6 @@
     authorization_django.middleware
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
-import functools
 import logging
 import sys
 
@@ -77,14 +76,23 @@ def authorization_middleware(get_response):
     key = middleware_settings['JWT_SECRET_KEY']
     algorithm = middleware_settings['JWT_ALGORITHM']
 
-    def authorize_function(level):
+    def authorize_function(level, token_signature):
         """ Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's authorization `level` (the `granted`
         parameter).
 
         :return func:
         """
-        return functools.partial(levels.is_authorized, level)
+        log_msg = 'Granted access (assigned: {}, needed: {}, token: {})'
+
+        def is_authorized(needed):
+            result = levels.is_authorized(level, needed)
+            if result:
+                msg = log_msg.format(bin(level), bin(needed), token_signature)
+                logger.info(msg)
+            return result
+
+        return is_authorized
 
     def invalid_token():
         """ Returns an HttpResponse object with a 401
@@ -110,6 +118,7 @@ def authorization_middleware(get_response):
         adds the is_authorized_for function to the request.
         """
         authorization = request.META.get('HTTP_AUTHORIZATION')
+        token_signature = ''
 
         if authorization:
 
@@ -133,11 +142,12 @@ def authorization_middleware(get_response):
 
             # todo: fail if authz is not present
             authz = decoded.get('authz', levels.LEVEL_DEFAULT)
+            token_signature = token.split('.')[2]
 
         else:
             authz = levels.LEVEL_DEFAULT
 
-        request.is_authorized_for = authorize_function(authz)
+        request.is_authorized_for = authorize_function(authz, token_signature)
 
         response = get_response(request)
 
