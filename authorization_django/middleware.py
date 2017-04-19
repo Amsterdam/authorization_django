@@ -128,8 +128,7 @@ def authorization_middleware(get_response):
                 logger.warning(
                     'Invalid Authorization header: {}'.format(authorization))
                 return invalid_request()
-            # todo: do not allow JWT prefix
-            if prefix not in ('JWT', 'Bearer',):
+            if prefix != 'Bearer':
                 logger.warning(
                     'Invalid Authorization header: {}'.format(authorization))
                 return invalid_request()
@@ -137,11 +136,17 @@ def authorization_middleware(get_response):
             try:
                 decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
             except jwt.InvalidTokenError:
-                logger.warning('Invalid JWT token: {}'.format(token))
+                logger.warning('API authz problem: could not decode access '
+                               'token {}'.format(token))
                 return invalid_token()
 
-            # todo: fail if authz is not present
-            authz = decoded.get('authz', levels.LEVEL_DEFAULT)
+            try:
+                authz = decoded['authz']
+            except KeyError:
+                logger.warning('API authz problem: access token misses authz '
+                               'claim: {}'.format(token))
+                return invalid_token()
+
             token_signature = token.split('.')[2]
 
         else:

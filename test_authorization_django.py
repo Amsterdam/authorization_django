@@ -111,7 +111,7 @@ def test_invalid_token_requests(
         assert 'WWW-Authenticate' in response
         assert 'invalid_token' in response['WWW-Authenticate']
         _, err = capfd.readouterr()
-        assert 'Invalid JWT token' in err
+        assert 'API authz problem' in err
 
 
 def test_malformed_requests(middleware, tokendata_correct, capfd):
