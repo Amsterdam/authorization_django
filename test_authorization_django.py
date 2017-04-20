@@ -44,6 +44,15 @@ def tokendata_correct():
 
 
 @pytest.fixture
+def tokendata_missing_authz():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30
+    }
+
+
+@pytest.fixture
 def tokendata_expired():
     now = int(time.time())
     return {
@@ -92,7 +101,8 @@ def test_valid_request(middleware, tokendata_correct):
 
 
 def test_invalid_token_requests(
-        middleware, tokendata_correct, tokendata_expired, capfd):
+        middleware, tokendata_correct, tokendata_missing_authz,
+        tokendata_expired, capfd):
     requests = (
         create_request(
             tokendata_correct,
@@ -101,6 +111,11 @@ def test_invalid_token_requests(
         ),
         create_request(
             tokendata_expired,
+            TESTSETTINGS['JWT_SECRET_KEY'],
+            TESTSETTINGS['JWT_ALGORITHM']
+        ),
+        create_request(
+            tokendata_missing_authz,
             TESTSETTINGS['JWT_SECRET_KEY'],
             TESTSETTINGS['JWT_ALGORITHM']
         )
