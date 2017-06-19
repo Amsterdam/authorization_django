@@ -20,6 +20,7 @@ _available_settings = {
     'JWT_SECRET_KEY': _required,
     'JWT_ALGORITHM': _required,
     'MIN_SCOPE': authorization_levels.LEVEL_DEFAULT,
+    'FORCED_ANONYMOUS_ROUTES': tuple(),
     'LOGGER_NAME': __name__,
     'LOGGER_LEVEL': logging.INFO,
     'LOGGER_FORMAT': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
@@ -40,6 +41,10 @@ _settings_rectifiers = {
     'JWT_ALGORITHM': {
         'func': lambda s: s == 'HS256' and s,
         'errmsg': 'jwt algorithm must be HS256'
+    },
+    'FORCED_ANONYMOUS_ROUTES': {
+        'func': lambda s: type(s) in {list, tuple, set} and s,
+        'errmsg': 'FORCED_ANONYMOUS_ROUTES must be a list, tuple or set'
     }
 }
 
@@ -63,7 +68,7 @@ def _rectify(settings):
     for key, rectifier in _settings_rectifiers.items():
         try:
             new_value = rectifier['func'](settings[key])
-            if not new_value:
+            if new_value is False:
                 raise AuthzConfigurationError(
                     'Error validating {}->{}: {}'.format(
                         _settings_key, key, rectifier['errmsg']))

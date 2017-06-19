@@ -27,10 +27,12 @@ def create_request(tokendata, key, alg, prefix='Bearer'):
     that contains the HTTP headers per the WSGI spec, PEP333 (meaning,
     uppercase, prefixed with HTTP_ and dashes transformed to underscores).
     """
-    return types.SimpleNamespace(META={
-        'HTTP_AUTHORIZATION': "{} {}".format(prefix, str(
-            jwt.encode(tokendata, key, algorithm=alg), 'utf-8'))
-    })
+    return types.SimpleNamespace(
+        META={
+            'HTTP_AUTHORIZATION': "{} {}".format(prefix, str(
+                jwt.encode(tokendata, key, algorithm=alg), 'utf-8'))
+        },
+        path='/')
 
 
 @pytest.fixture
@@ -154,7 +156,7 @@ def test_malformed_requests(middleware, tokendata_correct, capfd):
 
 
 def test_no_authorization_header(middleware):
-    empty_request = types.SimpleNamespace(META={})
+    empty_request = types.SimpleNamespace(META={}, path='/')
     middleware(empty_request)
     assert not empty_request.is_authorized_for(
         authorization_levels.LEVEL_EMPLOYEE_PLUS)
@@ -170,10 +172,21 @@ def test_min_scope_employee():
     testsettings['MIN_SCOPE'] = authorization_levels.LEVEL_EMPLOYEE
     settings.DATAPUNT_AUTHZ = testsettings
     middleware = authorization_django.authorization_middleware(lambda r: object())
-    empty_request = types.SimpleNamespace(META={})
+    empty_request = types.SimpleNamespace(META={}, path='/')
     response = middleware(empty_request)
     assert response.status_code == 401
     assert 'insufficient_scope' in response['WWW-Authenticate']
+
+
+def test_forced_anonymous_routes(middleware):
+    authorization_django.config.settings.cache_clear()  # @UndefinedVariable
+    settings.DATAPUNT_AUTHZ['FORCED_ANONYMOUS_ROUTES'] = (
+        '/status',
+    )
+    empty_request = types.SimpleNamespace(META={}, path='/status')
+    response = middleware(empty_request)
+    with pytest.raises(Exception):
+        response.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
 
 
 def test_unknown_config_param():

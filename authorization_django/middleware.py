@@ -42,6 +42,12 @@ def _create_logger(middleware_settings):
     return logger
 
 
+class _AuthorizationHeaderError(Exception):
+
+    def __init__(self, response):
+        self.response = response
+
+
 def authorization_middleware(get_response):
     """ Django middleware to parse incoming access tokens, validate them and
     set an authorization function on the request.
@@ -95,6 +101,11 @@ def authorization_middleware(get_response):
 
         return is_authorized
 
+    def authorize_forced_anonymous(_):
+        """ Authorize function for routes that are forced anonymous"""
+        raise Exception(
+            'Should not call is_authorized_for in anonymous routes')
+
     def insufficient_scope():
         """Returns an HttpResponse object with a 401."""
         msg = 'Bearer realm="datapunt", error="insufficient_scope"'
@@ -121,49 +132,62 @@ def authorization_middleware(get_response):
         response['WWW-Authenticate'] = msg
         return response
 
+    def token_data(authorization):
+        """ Get the token data present in the given authorization header.
+        """
+        try:
+            prefix, token = authorization.split()
+        except ValueError:
+            logger.warning(
+                'Invalid Authorization header: {}'.format(authorization))
+            raise _AuthorizationHeaderError(invalid_request())
+        if prefix != 'Bearer':
+            logger.warning(
+                'Invalid Authorization header: {}'.format(authorization))
+            raise _AuthorizationHeaderError(invalid_request())
+
+        try:
+            decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
+        except jwt.InvalidTokenError:
+            logger.warning('API authz problem: could not decode access '
+                           'token {}'.format(token))
+            raise _AuthorizationHeaderError(invalid_token())
+
+        try:
+            authz = decoded['authz']
+        except KeyError:
+            logger.warning('API authz problem: access token misses '
+                           'authz claim: {}'.format(token))
+            raise _AuthorizationHeaderError(invalid_token())
+
+        token_signature = token.split('.')[2]
+        return authz, token_signature
+
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
         """
-        authorization = request.META.get('HTTP_AUTHORIZATION')
-        token_signature = ''
-
-        if authorization:
-
-            try:
-                prefix, token = authorization.split()
-            except ValueError:
-                logger.warning(
-                    'Invalid Authorization header: {}'.format(authorization))
-                return invalid_request()
-            if prefix != 'Bearer':
-                logger.warning(
-                    'Invalid Authorization header: {}'.format(authorization))
-                return invalid_request()
-
-            try:
-                decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
-            except jwt.InvalidTokenError:
-                logger.warning('API authz problem: could not decode access '
-                               'token {}'.format(token))
-                return invalid_token()
-
-            try:
-                authz = decoded['authz']
-            except KeyError:
-                logger.warning('API authz problem: access token misses authz '
-                               'claim: {}'.format(token))
-                return invalid_token()
-
-            token_signature = token.split('.')[2]
-
+        # requests that are in FORCED_ANONYMOUS_ROUTES are accepted
+        request_path = request.path
+        if any(request_path.starts_with(route)
+               for route in middleware_settings['FORCED_ANONYMOUS_ROUTES']):
+            authz_func = authorize_forced_anonymous
         else:
-            authz = levels.LEVEL_DEFAULT
+            authorization = request.META.get('HTTP_AUTHORIZATION')
+            token_signature = ''
 
-        authz_func = authorize_function(authz, token_signature)
+            if authorization:
+                try:
+                    authz, token_signature = token_data(authorization)
+                except _AuthorizationHeaderError as e:
+                    return e.response
+            else:
+                authz = levels.LEVEL_DEFAULT
 
-        if not authz_func(min_scope):
-            return insufficient_scope()
+            authz_func = authorize_function(authz, token_signature)
+
+            if not authz_func(min_scope):
+                return insufficient_scope()
 
         request.is_authorized_for = authz_func
 
