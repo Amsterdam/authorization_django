@@ -2,9 +2,12 @@
     authorization_middleware.config
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
+import functools
 import logging
+import types
 
 from django.conf import settings as django_settings
+import authorization_levels
 
 # A sentinel object for required settings
 _required = object()
@@ -16,6 +19,7 @@ _settings_key = 'DATAPUNT_AUTHZ'
 _available_settings = {
     'JWT_SECRET_KEY': _required,
     'JWT_ALGORITHM': _required,
+    'MIN_SCOPE': authorization_levels.LEVEL_DEFAULT,
     'LOGGER_NAME': __name__,
     'LOGGER_LEVEL': logging.INFO,
     'LOGGER_FORMAT': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
@@ -70,6 +74,7 @@ def _rectify(settings):
                     _settings_key, key, rectifier['errmsg']))
 
 
+@functools.lru_cache(maxsize=1)
 def settings():
     """ Fetch the middleware settings.
 
@@ -93,4 +98,4 @@ def settings():
     user_settings.update({key: _available_settings[key] for key in defaults})
 
     _rectify(user_settings)
-    return user_settings
+    return types.MappingProxyType(user_settings)

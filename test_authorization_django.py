@@ -164,7 +164,20 @@ def test_no_authorization_header(middleware):
         authorization_levels.LEVEL_DEFAULT)
 
 
+def test_min_scope_employee():
+    authorization_django.config.settings.cache_clear()  # @UndefinedVariable
+    testsettings = TESTSETTINGS.copy()
+    testsettings['MIN_SCOPE'] = authorization_levels.LEVEL_EMPLOYEE
+    settings.DATAPUNT_AUTHZ = testsettings
+    middleware = authorization_django.authorization_middleware(lambda r: object())
+    empty_request = types.SimpleNamespace(META={})
+    response = middleware(empty_request)
+    assert response.status_code == 401
+    assert 'insufficient_scope' in response['WWW-Authenticate']
+
+
 def test_unknown_config_param():
     settings.DATAPUNT_AUTHZ['lalaland'] = 'oscar'
+    authorization_django.config.settings.cache_clear()  # @UndefinedVariable
     with pytest.raises(authorization_django.config.AuthzConfigurationError):
         authorization_django.authorization_middleware(None)

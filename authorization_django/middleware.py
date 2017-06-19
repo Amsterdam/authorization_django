@@ -75,6 +75,7 @@ def authorization_middleware(get_response):
 
     key = middleware_settings['JWT_SECRET_KEY']
     algorithm = middleware_settings['JWT_ALGORITHM']
+    min_scope = middleware_settings['MIN_SCOPE']
 
     def authorize_function(level, token_signature):
         """ Creates a partial around :func:`levels.is_authorized`
@@ -93,6 +94,13 @@ def authorization_middleware(get_response):
             return result
 
         return is_authorized
+
+    def insufficient_scope():
+        """Returns an HttpResponse object with a 401."""
+        msg = 'Bearer realm="datapunt", error="insufficient_scope"'
+        response = http.HttpResponse('Unauthorized', status=401)
+        response['WWW-Authenticate'] = msg
+        return response
 
     def invalid_token():
         """ Returns an HttpResponse object with a 401
@@ -152,7 +160,12 @@ def authorization_middleware(get_response):
         else:
             authz = levels.LEVEL_DEFAULT
 
-        request.is_authorized_for = authorize_function(authz, token_signature)
+        authz_func = authorize_function(authz, token_signature)
+
+        if not authz_func(min_scope):
+            return insufficient_scope()
+
+        request.is_authorized_for = authz_func
 
         response = get_response(request)
 

@@ -49,6 +49,8 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 ``JWT_SECRET_KEY``                (Required) Your JWT signing key
 ``JWT_ALGORITHM``                 (Required) Algorithm to use for the JWT
                                   message authentication code (MAC)
+``MIN_SCOPE``                     Minimum needed scope (Default = 
+                                  ``authorization_levels.LEVEL_DEFAULT``)
 ``LOGGER_NAME``                   Name of the logger. (Default =
                                   ``authorization_django``)
 ``LOGGER_HANDLER_POLICY``         the policy of the default logging
