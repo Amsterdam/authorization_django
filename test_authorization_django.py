@@ -32,7 +32,7 @@ def create_request(tokendata, key, alg, prefix='Bearer'):
             'HTTP_AUTHORIZATION': "{} {}".format(prefix, str(
                 jwt.encode(tokendata, key, algorithm=alg), 'utf-8'))
         },
-        path='/')
+        path='/', method='GET')
 
 
 @pytest.fixture
@@ -156,7 +156,7 @@ def test_malformed_requests(middleware, tokendata_correct, capfd):
 
 
 def test_no_authorization_header(middleware):
-    empty_request = types.SimpleNamespace(META={}, path='/')
+    empty_request = types.SimpleNamespace(META={}, path='/', method='GET')
     middleware(empty_request)
     assert not empty_request.is_authorized_for(
         authorization_levels.LEVEL_EMPLOYEE_PLUS)
@@ -172,7 +172,7 @@ def test_min_scope_employee():
     testsettings['MIN_SCOPE'] = authorization_levels.LEVEL_EMPLOYEE
     settings.DATAPUNT_AUTHZ = testsettings
     middleware = authorization_django.authorization_middleware(lambda r: object())
-    empty_request = types.SimpleNamespace(META={}, path='/')
+    empty_request = types.SimpleNamespace(META={}, path='/', method='GET')
     response = middleware(empty_request)
     assert response.status_code == 401
     assert 'insufficient_scope' in response['WWW-Authenticate']
@@ -183,8 +183,20 @@ def test_forced_anonymous_routes():
     settings.DATAPUNT_AUTHZ['FORCED_ANONYMOUS_ROUTES'] = (
         '/status',
     )
-    empty_request = types.SimpleNamespace(META={}, path='/status/lala')
+    empty_request = types.SimpleNamespace(META={}, path='/status/lala', method='GET')
     middleware = authorization_django.authorization_middleware(lambda r: object())
+    response = middleware(empty_request)
+    with pytest.raises(Exception):
+        response.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
+
+
+def test_options_works_while_min_scope():
+    authorization_django.config.settings.cache_clear()  # @UndefinedVariable
+    testsettings = TESTSETTINGS.copy()
+    testsettings['MIN_SCOPE'] = authorization_levels.LEVEL_EMPLOYEE
+    settings.DATAPUNT_AUTHZ = testsettings
+    middleware = authorization_django.authorization_middleware(lambda r: object())
+    empty_request = types.SimpleNamespace(META={}, path='/', method='OPTIONS')
     response = middleware(empty_request)
     with pytest.raises(Exception):
         response.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
