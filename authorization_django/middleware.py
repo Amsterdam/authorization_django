@@ -169,7 +169,7 @@ def authorization_middleware(get_response):
         """
         # requests that are in FORCED_ANONYMOUS_ROUTES are accepted
         request_path = request.path
-        if any(request_path.starts_with(route)
+        if any(request_path.startswith(route)
                for route in middleware_settings['FORCED_ANONYMOUS_ROUTES']):
             authz_func = authorize_forced_anonymous
         else:

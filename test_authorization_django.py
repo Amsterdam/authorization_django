@@ -178,12 +178,13 @@ def test_min_scope_employee():
     assert 'insufficient_scope' in response['WWW-Authenticate']
 
 
-def test_forced_anonymous_routes(middleware):
+def test_forced_anonymous_routes():
     authorization_django.config.settings.cache_clear()  # @UndefinedVariable
     settings.DATAPUNT_AUTHZ['FORCED_ANONYMOUS_ROUTES'] = (
         '/status',
     )
-    empty_request = types.SimpleNamespace(META={}, path='/status')
+    empty_request = types.SimpleNamespace(META={}, path='/status/lala')
+    middleware = authorization_django.authorization_middleware(lambda r: object())
     response = middleware(empty_request)
     with pytest.raises(Exception):
         response.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
