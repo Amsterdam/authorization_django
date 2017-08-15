@@ -149,8 +149,8 @@ def authorization_middleware(get_response):
         try:
             decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
         except jwt.InvalidTokenError:
-            logger.warning('API authz problem: could not decode access '
-                           'token {}'.format(token))
+            logger.exception('API authz problem: could not decode access '
+                             'token {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
 
         try:
@@ -173,6 +173,7 @@ def authorization_middleware(get_response):
             request_path.startswith(route)
             for route in middleware_settings['FORCED_ANONYMOUS_ROUTES'])
         is_options = request.method == 'OPTIONS'
+
         if forced_anonymous or is_options:
             authz_func = authorize_forced_anonymous
         else:
