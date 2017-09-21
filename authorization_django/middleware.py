@@ -83,19 +83,37 @@ def authorization_middleware(get_response):
     algorithm = middleware_settings['JWT_ALGORITHM']
     min_scope = middleware_settings['MIN_SCOPE']
 
-    def authorize_function(level, token_signature):
+    def authorize_function(scopes, level, token_signature):
         """ Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's authorization `level` (the `granted`
         parameter).
 
         :return func:
         """
-        log_msg = 'Granted access (assigned: {}, needed: {}, token: {})'
+        log_msg = 'Granted access (assigned: {}, {}: {}, token: {})'
 
-        def is_authorized(needed):
-            result = levels.is_authorized(level, needed)
+        def is_authorized(arg0, *args):
+            if isinstance(arg0, int):
+                if len(args) > 0:
+                    raise TypeError("No extra arguments expected")
+                needed = arg0
+                result = levels.is_authorized(level, needed)
+                if result:
+                    msg = log_msg.format(bin(level), 'needed', bin(needed), token_signature)
+            elif isinstance(arg0, str):
+                needed_scopes =  { arg0 }
+                for arg in args:
+                    if not isinstance(arg, str):
+                        raise TypeError("String arguments expected")
+                    needed_scopes.add(arg)
+                given_scopes = set(scopes)
+                result = len(needed_scopes.difference(given_scopes)) == 0
+                if result:
+                    msg = log_msg.format(list(needed_scopes), 'scopes', scopes, token_signature)
+            else:
+                raise TypeError("String or Integer expected")
+
             if result:
-                msg = log_msg.format(bin(level), bin(needed), token_signature)
                 logger.info(msg)
             return result
 
@@ -153,15 +171,23 @@ def authorization_middleware(get_response):
                              'token {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
 
-        try:
-            authz = decoded['authz']
-        except KeyError:
+        if 'authz' in decoded or 'scopes' in decoded:
+            if 'authz' in decoded:
+                authz = decoded['authz']
+            else:
+                authz = 0
+
+            if 'scopes' in decoded:
+                scopes = decoded['scopes']
+            else:
+                scopes = []
+        else:
             logger.warning('API authz problem: access token misses '
-                           'authz claim: {}'.format(token))
+                           'authz and scopes claim: {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
 
         token_signature = token.split('.')[2]
-        return authz, token_signature
+        return scopes, authz, token_signature
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
@@ -182,13 +208,14 @@ def authorization_middleware(get_response):
 
             if authorization:
                 try:
-                    authz, token_signature = token_data(authorization)
+                    scopes, authz, token_signature = token_data(authorization)
                 except _AuthorizationHeaderError as e:
                     return e.response
             else:
                 authz = levels.LEVEL_DEFAULT
+                scopes = []
 
-            authz_func = authorize_function(authz, token_signature)
+            authz_func = authorize_function(scopes, authz, token_signature)
 
             if not authz_func(min_scope):
                 return insufficient_scope()

@@ -64,6 +64,26 @@ def tokendata_expired():
 
 
 @pytest.fixture
+def tokendata_correct_level_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'authz': authorization_levels.LEVEL_EMPLOYEE_PLUS,
+        'scopes': ['scope1', 'scope2']
+    }
+
+@pytest.fixture
+def tokendata_correct_only_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'scopes': ['scope1', 'scope2']
+    }
+
+
+@pytest.fixture
 def middleware():
     settings.DATAPUNT_AUTHZ = TESTSETTINGS
     return authorization_django.authorization_middleware(lambda r: object())
@@ -101,6 +121,33 @@ def test_valid_request(middleware, tokendata_correct):
     middleware(request)
     assert request.is_authorized_for(authorization_levels.LEVEL_EMPLOYEE_PLUS)
 
+
+def test_valid_scopes_request(middleware, tokendata_correct_only_scopes):
+    request = create_request(
+        tokendata_correct_only_scopes,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+def test_valid_one_scope_request(middleware, tokendata_correct_only_scopes):
+    request = create_request(
+        tokendata_correct_only_scopes,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert request.is_authorized_for("scope1")
+
+def test_invalid_scopes_request(middleware, tokendata_correct_only_scopes):
+    request = create_request(
+        tokendata_correct_only_scopes,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert not request.is_authorized_for("scope1", "scope2", "scope3")
 
 def test_invalid_token_requests(
         middleware, tokendata_correct, tokendata_missing_authz,
