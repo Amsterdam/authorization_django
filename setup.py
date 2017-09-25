@@ -42,7 +42,7 @@ setup(
     name='datapunt-authorization-django',
     version=version,
     description='Datapunt authorization check for Django',
-    url='https://github.com/DatapuntAmsterdam/authorization_django',
+    url='https://github.com/Amsterdam/authorization_django',
     author='Amsterdam Datapunt',
     author_email='datapunt.ois@amsterdam.nl',
     license='Mozilla Public License Version 2.0',
