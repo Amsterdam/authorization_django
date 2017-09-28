@@ -83,7 +83,7 @@ def authorization_middleware(get_response):
     algorithm = middleware_settings['JWT_ALGORITHM']
     min_scope = middleware_settings['MIN_SCOPE']
 
-    def authorize_function(scopes, level, token_signature):
+    def authorize_function(scopes, level, token_signature, x_unique_id=None):
         """ Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's authorization `level` (the `granted`
         parameter).
@@ -101,23 +101,28 @@ def authorization_middleware(get_response):
                 if result:
                     msg = log_msg.format(bin(level), 'needed', bin(needed), token_signature)
             elif isinstance(arg0, str):
-                needed_scopes =  { arg0 }
+                needed_scopes = {arg0}
                 for arg in args:
                     if not isinstance(arg, str):
                         raise TypeError("String arguments expected")
                     needed_scopes.add(arg)
                 given_scopes = set(scopes)
                 result = len(needed_scopes.difference(given_scopes)) == 0
+                if result:
+                    msg = log_msg.format(list(needed_scopes), 'scopes', scopes, token_signature)
+
                 # TODO : Remove when levels are obsolete everywhere
                 # For now support old tokens for HR with only AUTHZ LEVEL_EMPLOYEE
                 if not result and len(args) == 0 and arg0 == 'HR/R':
                     result = levels.is_authorized(level, levels.LEVEL_EMPLOYEE)
                 if result:
-                    msg = log_msg.format(list(needed_scopes), 'scopes', scopes, token_signature)
+                    msg = log_msg.format(list(needed_scopes), 'level', level, token_signature)
             else:
                 raise TypeError("String or Integer expected")
 
             if result:
+                if x_unique_id:
+                    msg += ' X-Unique-ID: {}'.format(x_unique_id)
                 logger.info(msg)
             return result
 
@@ -219,7 +224,8 @@ def authorization_middleware(get_response):
                 authz = levels.LEVEL_DEFAULT
                 scopes = []
 
-            authz_func = authorize_function(scopes, authz, token_signature)
+            x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
+            authz_func = authorize_function(scopes, authz, token_signature, x_unique_id)
 
             if not authz_func(min_scope):
                 return insufficient_scope()
