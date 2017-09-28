@@ -115,8 +115,9 @@ def authorization_middleware(get_response):
                 # For now support old tokens for HR with only AUTHZ LEVEL_EMPLOYEE
                 if not result and len(args) == 0 and arg0 == 'HR/R':
                     result = levels.is_authorized(level, levels.LEVEL_EMPLOYEE)
-                if result:
-                    msg = log_msg.format(list(needed_scopes), 'level', level, token_signature)
+                    if result:
+                        msg = log_msg.format(list(needed_scopes), 'level', level, token_signature)
+                # end remove when levels are obsolete
             else:
                 raise TypeError("String or Integer expected")
 
