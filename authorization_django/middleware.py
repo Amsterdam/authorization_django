@@ -108,6 +108,10 @@ def authorization_middleware(get_response):
                     needed_scopes.add(arg)
                 given_scopes = set(scopes)
                 result = len(needed_scopes.difference(given_scopes)) == 0
+                # TODO : Remove when levels are obsolete everywhere
+                # For now support old tokens for HR with only AUTHZ LEVEL_EMPLOYEE
+                if not result and len(args) == 0 and arg0 == 'HR/R':
+                    result = levels.is_authorized(level, levels.LEVEL_EMPLOYEE)
                 if result:
                     msg = log_msg.format(list(needed_scopes), 'scopes', scopes, token_signature)
             else:

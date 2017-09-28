@@ -74,6 +74,24 @@ def tokendata_correct_level_scopes():
     }
 
 @pytest.fixture
+def tokendata_correct_level_employee():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'authz': authorization_levels.LEVEL_EMPLOYEE,
+    }
+
+@pytest.fixture
+def tokendata_correct_scope_hr_r():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'scopes': ['HR/R']
+    }
+
+@pytest.fixture
 def tokendata_correct_only_scopes():
     now = int(time.time())
     return {
@@ -148,6 +166,33 @@ def test_invalid_scopes_request(middleware, tokendata_correct_only_scopes):
     )
     middleware(request)
     assert not request.is_authorized_for("scope1", "scope2", "scope3")
+
+def test_hr_authz_request(middleware, tokendata_correct_level_employee):
+    request = create_request(
+        tokendata_correct_level_employee,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert request.is_authorized_for("HR/R")
+
+def test_hr_scope_request(middleware, tokendata_correct_scope_hr):
+    request = create_request(
+        tokendata_correct_scope_hr,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert request.is_authorized_for("HR/R")
+
+def test_hr_scope_request(middleware, tokendata_correct_only_scopes):
+    request = create_request(
+        tokendata_correct_only_scopes,
+        TESTSETTINGS['JWT_SECRET_KEY'],
+        TESTSETTINGS['JWT_ALGORITHM']
+    )
+    middleware(request)
+    assert not request.is_authorized_for("HR/R")
 
 def test_invalid_token_requests(
         middleware, tokendata_correct, tokendata_missing_authz,
