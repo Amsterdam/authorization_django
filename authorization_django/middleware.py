@@ -90,7 +90,8 @@ def authorization_middleware(get_response):
 
         :return func:
         """
-        log_msg = 'Granted access (assigned: {}, {}: {}, token: {})'
+        log_msg_level = 'Granted access (assigned: {}, needed: {}, token: {})'
+        log_msg_scopes = 'Granted access (assigned: {}, scopes: {}, level: {}, token: {})'
 
         def is_authorized(arg0, *args):
             if isinstance(arg0, int):
@@ -99,25 +100,18 @@ def authorization_middleware(get_response):
                 needed = arg0
                 result = levels.is_authorized(level, needed)
                 if result:
-                    msg = log_msg.format(bin(level), 'needed', bin(needed), token_signature)
+                    msg = log_msg_level.format(bin(level), bin(needed), token_signature)
             elif isinstance(arg0, str):
                 needed_scopes = {arg0}
                 for arg in args:
                     if not isinstance(arg, str):
                         raise TypeError("String arguments expected")
                     needed_scopes.add(arg)
-                given_scopes = set(scopes)
-                result = len(needed_scopes.difference(given_scopes)) == 0
+                granted_scopes = set(scopes)
+                # Pass level for backward compatibility
+                result = levels.is_authorized(granted_scopes, needed_scopes, level)
                 if result:
-                    msg = log_msg.format(list(needed_scopes), 'scopes', scopes, token_signature)
-
-                # TODO : Remove when levels are obsolete everywhere
-                # For now support old tokens for HR with only AUTHZ LEVEL_EMPLOYEE
-                if not result and len(args) == 0 and arg0 == 'HR/R':
-                    result = levels.is_authorized(level, levels.LEVEL_EMPLOYEE)
-                    if result:
-                        msg = log_msg.format(list(needed_scopes), 'level', level, token_signature)
-                # end remove when levels are obsolete
+                    msg = log_msg_scopes.format(list(needed_scopes), scopes, level, token_signature)
             else:
                 raise TypeError("String or Integer expected")
 
