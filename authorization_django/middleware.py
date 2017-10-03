@@ -222,7 +222,7 @@ def authorization_middleware(get_response):
             x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
             authz_func = authorize_function(scopes, authz, token_signature, x_unique_id)
 
-            if not authz_func(min_scope):
+            if min_scope != levels.LEVEL_DEFAULT and not authz_func(min_scope):
                 return insufficient_scope()
 
         request.is_authorized_for = authz_func
