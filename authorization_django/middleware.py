@@ -163,7 +163,7 @@ def authorization_middleware(get_response):
             logger.warning(
                 'Invalid Authorization header: {}'.format(authorization))
             raise _AuthorizationHeaderError(invalid_request())
-        if prefix != 'Bearer':
+        if prefix.lower() != 'bearer':
             logger.warning(
                 'Invalid Authorization header: {}'.format(authorization))
             raise _AuthorizationHeaderError(invalid_request())

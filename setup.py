@@ -30,7 +30,7 @@ class PyTest(TestCommand):
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
-version = '0.2.15'
+version = '0.2.16'
 packages = ['authorization_django']
 requires = ['datapunt-authorization-levels>=0.1.1', 'Django>=1.10.3', 'PyJWT>=1.5.2']
 requires_test = ['pytest==3.0.5', 'pytest-cov==2.4.0']
