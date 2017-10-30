@@ -2,6 +2,9 @@
 .project
 .pydevproject
 
+# IntelliJ
+.idea
+
 # Python bytecode and cache
 *.pyc
 **/__pycache__

@@ -5,7 +5,6 @@
 import logging
 import sys
 
-import authorization_levels as levels
 from django import http
 from django.conf import settings as django_settings
 import jwt
@@ -61,7 +60,7 @@ def authorization_middleware(get_response):
 
     ::
 
-        request.is_authorized_for(levels.LEVEL_EMPLOYEE)
+        request.is_authorized_for()
 
     :param get_response: callable that creates the response object
     :return: response
@@ -79,43 +78,22 @@ def authorization_middleware(get_response):
     middleware_settings = settings()
     logger = _create_logger(middleware_settings)
 
-    key = middleware_settings['JWT_SECRET_KEY']
-    algorithm = middleware_settings['JWT_ALGORITHM']
     min_scope = middleware_settings['MIN_SCOPE']
 
-    def authorize_function(scopes, level, token_signature, x_unique_id=None):
+    def authorize_function(scopes, token_signature, x_unique_id=None):
         """ Creates a partial around :func:`levels.is_authorized`
-        that wraps the current user's authorization `level` (the `granted`
-        parameter).
+        that wraps the current user's scopes.
 
         :return func:
         """
-        log_msg_level = 'Granted access (assigned: {}, needed: {}, token: {})'
-        log_msg_scopes = 'Granted access (assigned: {}, scopes: {}, level: {}, token: {})'
+        log_msg_scopes = 'Granted access (needed: {}, granted: {}, token: {})'
 
-        def is_authorized(arg0, *args):
-            if isinstance(arg0, int):
-                if len(args) > 0:
-                    raise TypeError("No extra arguments expected")
-                needed = arg0
-                result = levels.is_authorized(level, needed)
-                if result:
-                    msg = log_msg_level.format(bin(level), bin(needed), token_signature)
-            elif isinstance(arg0, str):
-                needed_scopes = {arg0}
-                for arg in args:
-                    if not isinstance(arg, str):
-                        raise TypeError("String arguments expected")
-                    needed_scopes.add(arg)
-                granted_scopes = set(scopes)
-                # Pass level for backward compatibility
-                result = levels.is_authorized(granted_scopes, needed_scopes, level)
-                if result:
-                    msg = log_msg_scopes.format(list(needed_scopes), scopes, level, token_signature)
-            else:
-                raise TypeError("String or Integer expected")
-
+        def is_authorized(*needed_scopes):
+            granted_scopes = set(scopes)
+            needed_scopes = set(needed_scopes)
+            result = needed_scopes.issubset(granted_scopes)
             if result:
+                msg = log_msg_scopes.format(needed_scopes, granted_scopes, token_signature)
                 if x_unique_id:
                     msg += ' X-Unique-ID: {}'.format(x_unique_id)
                 logger.info(msg)
@@ -169,35 +147,42 @@ def authorization_middleware(get_response):
             raise _AuthorizationHeaderError(invalid_request())
 
         try:
-            decoded = jwt.decode(token, key=key, algorithms=(algorithm,))
+            header = jwt.get_unverified_header(token)
+        except (jwt.InvalidTokenError, jwt.DecodeError):
+            logger.exception("API authz problem: JWT decode error while reading header")
+            raise _AuthorizationHeaderError(invalid_token())
+
+        if 'kid' not in header:
+            logger.exception("Did not get a valid key identifier")
+            raise _AuthorizationHeaderError(invalid_token())
+
+        if header['kid'] not in middleware_settings['JWKS']:
+            logger.exception("Unknown key identifier: {}".format(header['kid']))
+            raise _AuthorizationHeaderError(invalid_token())
+
+        key = middleware_settings['JWKS'][header['kid']]
+
+        try:
+            decoded = jwt.decode(token, key=key.key, algorithms=(key.alg,))
         except jwt.InvalidTokenError:
             logger.exception('API authz problem: could not decode access '
                              'token {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
 
-        if 'authz' in decoded or 'scopes' in decoded:
-            if 'authz' in decoded:
-                authz = decoded['authz']
-            else:
-                authz = 0
-
-            if 'scopes' in decoded:
-                scopes = decoded['scopes']
-            else:
-                scopes = []
-        else:
+        if 'scopes' not in decoded:
             logger.warning('API authz problem: access token misses '
                            'authz and scopes claim: {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
+        else:
+            scopes = decoded['scopes']
 
         token_signature = token.split('.')[2]
-        return scopes, authz, token_signature
+        return scopes, token_signature
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
         """
-        # requests that are in FORCED_ANONYMOUS_ROUTES are accepted
         request_path = request.path
         forced_anonymous = any(
             request_path.startswith(route)
@@ -212,17 +197,16 @@ def authorization_middleware(get_response):
 
             if authorization:
                 try:
-                    scopes, authz, token_signature = token_data(authorization)
+                    scopes, token_signature = token_data(authorization)
                 except _AuthorizationHeaderError as e:
                     return e.response
             else:
-                authz = levels.LEVEL_DEFAULT
                 scopes = []
 
             x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
-            authz_func = authorize_function(scopes, authz, token_signature, x_unique_id)
+            authz_func = authorize_function(scopes, token_signature, x_unique_id)
 
-            if min_scope != levels.LEVEL_DEFAULT and not authz_func(min_scope):
+            if not authz_func(*min_scope):
                 return insufficient_scope()
 
         request.is_authorized_for = authz_func

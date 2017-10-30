@@ -21,9 +21,7 @@
     ``LOGGER_FORMAT_DEBUG``           Log format for messages in debug mode
 """
 from .middleware import authorization_middleware
-import authorization_levels as levels
 
 __all__ = (
     'authorization_middleware',
-    'levels'
 )

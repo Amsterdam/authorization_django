@@ -3,36 +3,13 @@
 import sys
 
 from setuptools import setup
-from setuptools.command.test import test as TestCommand
-
-
-class PyTest(TestCommand):
-    """ Custom class to avoid depending on pytest-runner.
-    """
-    user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
-
-    def initialize_options(self):
-        TestCommand.initialize_options(self)
-        self.pytest_args = []
-
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
-
-    def run_tests(self):
-        import pytest
-
-        errno = pytest.main(self.pytest_args)
-        sys.exit(errno)
-
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 version = '0.2.16'
 packages = ['authorization_django']
-requires = ['datapunt-authorization-levels>=0.1.1', 'Django>=1.10.3', 'PyJWT>=1.5.2']
+requires = ['Django>=1.10.3', 'PyJWT>=1.5.2', 'cryptography==2.1.2']
 requires_test = ['pytest==3.0.5', 'pytest-cov==2.4.0']
 requires_extras = {
     'dev': [] + requires_test,
@@ -57,7 +34,6 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
-    cmdclass={'test': PyTest},
     packages=packages,
     install_requires=requires,
     tests_require=requires_test,

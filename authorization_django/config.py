@@ -6,8 +6,8 @@ import functools
 import logging
 import types
 
+from . import jwks
 from django.conf import settings as django_settings
-import authorization_levels
 
 # A sentinel object for required settings
 _required = object()
@@ -17,9 +17,8 @@ _settings_key = 'DATAPUNT_AUTHZ'
 
 # A list of all available settings, with default values
 _available_settings = {
-    'JWT_SECRET_KEY': _required,
-    'JWT_ALGORITHM': _required,
-    'MIN_SCOPE': authorization_levels.LEVEL_DEFAULT,
+    'JWKS': _required,
+    'MIN_SCOPE': tuple(),
     'FORCED_ANONYMOUS_ROUTES': tuple(),
     'LOGGER_NAME': __name__,
     'LOGGER_LEVEL': logging.INFO,
@@ -34,13 +33,9 @@ _available_settings = {
 
 # Validator functions and error messages
 _settings_rectifiers = {
-    'JWT_SECRET_KEY': {
-        'func': lambda s: len(bytes(s, 'utf-8')) >= 16 and bytes(s, 'utf-8'),
-        'errmsg': 'jwt key must be a str with at least 16 ascii characters'
-    },
-    'JWT_ALGORITHM': {
-        'func': lambda s: s == 'HS256' and s,
-        'errmsg': 'jwt algorithm must be HS256'
+    'JWKS': {
+        'func': lambda s: jwks.load(s),
+        'errmsg': 'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.'
     },
     'FORCED_ANONYMOUS_ROUTES': {
         'func': lambda s: type(s) in {list, tuple, set} and s,
