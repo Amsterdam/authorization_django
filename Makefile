@@ -12,8 +12,8 @@ build:
 	$(PYTHON) setup.py build
 
 test:
-	pytest -p no:cacheprovider --verbose --capture=no .
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --capture=no ."
 
 coverage:
-	pytest -p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no .
+	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no ."
 

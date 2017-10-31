@@ -3,6 +3,28 @@
 import sys
 
 from setuptools import setup
+from setuptools.command.test import test as TestCommand
+
+
+class PyTest(TestCommand):
+    """ Custom class to avoid depending on pytest-runner.
+    """
+    user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
+
+    def initialize_options(self):
+        TestCommand.initialize_options(self)
+        self.pytest_args = []
+
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        import pytest
+
+        errno = pytest.main(self.pytest_args)
+        sys.exit(errno)
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
@@ -34,6 +56,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
+    cmdclass={'test': PyTest},
     packages=packages,
     install_requires=requires,
     tests_require=requires_test,
