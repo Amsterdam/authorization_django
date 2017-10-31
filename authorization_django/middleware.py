@@ -156,11 +156,13 @@ def authorization_middleware(get_response):
             logger.exception("Did not get a valid key identifier")
             raise _AuthorizationHeaderError(invalid_token())
 
-        if header['kid'] not in middleware_settings['JWKS']:
+        keys = middleware_settings['JWKS'].verifiers
+
+        if header['kid'] not in keys:
             logger.exception("Unknown key identifier: {}".format(header['kid']))
             raise _AuthorizationHeaderError(invalid_token())
 
-        key = middleware_settings['JWKS'][header['kid']]
+        key = keys[header['kid']]
 
         try:
             decoded = jwt.decode(token, key=key.key, algorithms=(key.alg,))

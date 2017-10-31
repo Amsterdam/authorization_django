@@ -1,6 +1,7 @@
 import base64
 import collections
 import json
+from types import MappingProxyType
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_der_public_key, load_der_private_key
@@ -25,28 +26,49 @@ _ASN1_OID_CURVE_P521 = b'\x2b\x81\x04\x00\x23'  # 1.3.132.0.35
 _Key = collections.namedtuple('Key', 'alg key')
 """Immutable type for key storage"""
 
+_KeySet = collections.namedtuple('KeySet', 'signers verifiers')
+"""Immutable type for key sets"""
+
+
+class JWKError(Exception): pass
+"""Error raised when parsing a JWKSet fails."""
+
 
 def load(jwks):
     """Parse a JWKSet and return a dictionary that maps key IDs on keys."""
-    keys = {}
-    keyset = json.loads(jwks)
-    for key in keyset['keys']:
-        if key['kty'] == 'oct':
-            keys[key['kid']] = _Key(alg=key['alg'], key=key['k'])
-        elif key['kty'] == 'EC':
-            if key['crv'] == 'P-256':
-                alg = 'ES256'
-            elif key['crv'] == 'P-384':
-                alg = 'ES384'
-            elif key['crv'] == 'P-521':
-                alg = 'ES512'
-            if 'd' in key:  # ECDSA private
-                k = load_der_private_key(
-                    _encode_private_ecdsa_key(key['d'], key['x'], key['y']), None, default_backend()
-                )
-            else:
-                k = load_der_public_key(_encode_public_ecdsa_key(key['x'], key['y']), default_backend())
-            keys[key['kid']] = _Key(alg=alg, key=k)
+    sign_keys = {}
+    verify_keys = {}
+    try:
+        keyset = json.loads(jwks)
+        for key in keyset['keys']:
+            for op in key['key_ops']:
+                if op == 'sign':
+                    k = sign_keys
+                elif op == 'verify':
+                    k = verify_keys
+                else:
+                    raise JWKError("Unsupported key operation: {}".format(op))
+                if key['kty'] == 'oct':
+                    k[key['kid']] = _Key(alg=key['alg'], key=key['k'])
+                elif key['kty'] == 'EC':
+                    if key['crv'] == 'P-256':
+                        alg = 'ES256'
+                    elif key['crv'] == 'P-384':
+                        alg = 'ES384'
+                    elif key['crv'] == 'P-521':
+                        alg = 'ES512'
+                    if op == 'sign':  # ECDSA private
+                        derkey = load_der_private_key(
+                            _encode_private_ecdsa_key(key['d'], key['x'], key['y']), None, default_backend()
+                        )
+                    else:
+                        derkey = load_der_public_key(_encode_public_ecdsa_key(key['x'], key['y']), default_backend())
+                    k[key['kid']] = _Key(alg=alg, key=derkey)
+                else:
+                    raise JWKError("Unsupported key type: {}".format(key['kty']))
+    except (KeyError, json.JSONDecodeError) as e:
+        raise JWKError() from e
+    keys = _KeySet(signers=MappingProxyType(sign_keys), verifiers=MappingProxyType(verify_keys))
     return keys
 
 
