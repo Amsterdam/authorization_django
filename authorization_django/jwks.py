@@ -49,7 +49,7 @@ def load(jwks):
                 else:
                     raise JWKError("Unsupported key operation: {}".format(op))
                 if key['kty'] == 'oct':
-                    k[key['kid']] = _Key(alg=key['alg'], key=key['k'])
+                    k[key['kid']] = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['k']))
                 elif key['kty'] == 'EC':
                     if key['crv'] == 'P-256':
                         alg = 'ES256'

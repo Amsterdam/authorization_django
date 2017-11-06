@@ -9,14 +9,15 @@ import types
 import jwt
 import pytest
 
+
 from django import conf
 import authorization_django
 from authorization_django import jwks
 
 JWKS = { "keys": [
-    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "1", "alg": "HS256", "k": "iamasymmetrickey" },
-    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "2", "alg": "HS384", "k": "iamanothersymmetrickey" },
-    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "3", "alg": "HS512", "k": "iamyetanothersymmetrickey" },
+    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "1", "alg": "HS256", "k": "aWFtYXN5bW1ldHJpY2tleQ==" },   #is iamasymmetrickey base64 encoded
+    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "2", "alg": "HS384", "k": "aWFtYW5vdGhlcnN5bW1ldHJpY2tleQ==" }, #id iamanothersymmetrickey base64 encoded
+    { "kty": "oct", "key_ops": ["sign", "verify"], "kid": "3", "alg": "HS512", "k": "aWFteWV0YW5vdGhlcnN5bW1ldHJpY2tleQ==" }, #is iamyetanothersymmetrickey base64 encoded
     { "kty": "EC", "key_ops": ["sign", "verify"], "kid": "4", "crv": "P-256", "x": "PTTjIY84aLtaZCxLTrG_d8I0G6YKCV7lg8M4xkKfwQ4=", "y": "ank6KA34vv24HZLXlChVs85NEGlpg2sbqNmR_BcgyJU=", "d":"9GJquUJf57a9sev-u8-PoYlIezIPqI_vGpIaiu4zyZk=" },
     { "kty": "EC", "key_ops": ["sign", "verify"], "kid": "5", "crv": "P-384", "x": "IDC-5s6FERlbC4Nc_4JhKW8sd51AhixtMdNUtPxhRFP323QY6cwWeIA3leyZhz-J", "y": "eovmN9ocANS8IJxDAGSuC1FehTq5ZFLJU7XSPg36zHpv4H2byKGEcCBiwT4sFJsy", "d": "xKPj5IXjiHpQpLOgyMGo6lg_DUp738SuXkiugCFMxbGNKTyTprYPfJz42wTOXbtd" },
     { "kty": "EC", "key_ops": ["sign", "verify"], "kid": "6", "crv": "P-521", "x": "AKarqFSECj9mH4scD_RSGD1lzBzomFWz63hvqDc8PkElCKByOUIo_N8jN5mpJS2RfbIj2d9bEDnpwQGLvu9kXG97", "y": "AF5ZmIGpat-yKHoP985gfnASPPZuhXGqPg4QdsJzdV4sY1GP45DOxwjZOmvhOzKzezmB-SSOWweMgUDNHoJreAXQ", "d": "ALV2ghdOJbsaT4QFwqbOky6TwkHEC89pQ-bUe7kt5A7-8vXI2Ihi2YEtygCQ5PwtPiTxjRs5mgzVDRp5LwHyYzvn" }
