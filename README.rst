@@ -48,7 +48,10 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 ================================= =========================================
 ``JWKS``                          (Required) provide a valid JWKSet. See RFC 7517 and 7518 for details
                                   For asymmetric EC keys only public components (x and y part) need to be provided.
-                                  Private keys (d part) should NOT be added here
+                                  Private keys (d part) should NOT be added here.
+                                  For symmetric keys the key (k) is the base64 encoded version of the old JWT_SECRET_KEY
+                                  The alg part then replaces the old JWT_ALGORITHM.
+
                                   The JWKS looks like :
                                     {
                                         "keys": [
