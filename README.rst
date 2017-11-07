@@ -46,10 +46,34 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 .. tabularcolumns:: |p{6.5cm}|p{8.5cm}|
 
 ================================= =========================================
-``JWT_SECRET_KEY``                (Required) Your JWT signing key
-``JWT_ALGORITHM``                 (Required) Algorithm to use for the JWT
-                                  message authentication code (MAC)
-``MIN_SCOPE``                     Minimum needed scope (Default = 
+``JWKS``                          (Required) provide a valid JWKSet. See RFC 7517 and 7518 for details
+                                  For asymmetric EC keys only public components (x and y part) need to be provided.
+                                  Private keys (d part) should NOT be added here
+                                  The JWKS looks like :
+                                    {
+                                        "keys": [
+                                            {
+                                                "crv": "P-256",
+                                                "key_ops": [
+                                                    "verify"
+                                                ],
+                                                "kid": "key-identifier-asymmetric-1",
+                                                "kty": "EC",
+                                                "x": "base64-encoded-x-component-key=",
+                                                "y": "base64-encoded-y-component-key="
+                                            },
+                                            {
+                                                "alg": "HS256",
+                                                "k": "base64-encoded-symmetric-key=",
+                                                "key_ops": [
+                                                    "verify"
+                                                ],
+                                                "kid": "key-identifier-symmetric-1",
+                                                "kty": "oct"
+                                            }
+                                        ]
+                                    }
+``MIN_SCOPE``                     Minimum needed scope (Default =
                                   ``authorization_levels.LEVEL_DEFAULT``)
 ``LOGGER_NAME``                   Name of the logger. (Default =
                                   ``authorization_django``)
