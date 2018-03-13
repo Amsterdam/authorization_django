@@ -80,6 +80,9 @@ def authorization_middleware(get_response):
 
     min_scope = middleware_settings['MIN_SCOPE']
 
+    def always_ok(*args, **kwargs):
+        return True
+
     def authorize_function(scopes, token_signature, x_unique_id=None):
         """ Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's scopes.
@@ -189,6 +192,12 @@ def authorization_middleware(get_response):
         forced_anonymous = any(
             request_path.startswith(route)
             for route in middleware_settings['FORCED_ANONYMOUS_ROUTES'])
+
+        if middleware_settings['ALWAYS_OK']:
+            logger.warning('API authz DISABLED')
+            request.is_authorized_for = always_ok
+            return get_response(request)
+
         is_options = request.method == 'OPTIONS'
 
         if forced_anonymous or is_options:

@@ -19,6 +19,7 @@ _settings_key = 'DATAPUNT_AUTHZ'
 _available_settings = {
     'JWKS': _required,
     'MIN_SCOPE': tuple(),
+    'ALWAYS_OK': False,
     'FORCED_ANONYMOUS_ROUTES': tuple(),
     'LOGGER_NAME': __name__,
     'LOGGER_LEVEL': logging.INFO,
