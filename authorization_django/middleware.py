@@ -204,6 +204,7 @@ def authorization_middleware(get_response):
         if middleware_settings['ALWAYS_OK']:
             logger.warning('API authz DISABLED')
             request.is_authorized_for = always_ok
+            request.get_token_subject = 'ALWAYS_OK'
             return get_response(request)
 
         is_options = request.method == 'OPTIONS'
