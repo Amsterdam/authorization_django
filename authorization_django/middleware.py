@@ -80,6 +80,9 @@ def authorization_middleware(get_response):
 
     min_scope = middleware_settings['MIN_SCOPE']
 
+    def get_token_subject(sub):
+        return sub
+
     def always_ok(*args, **kwargs):
         return True
 
@@ -181,8 +184,13 @@ def authorization_middleware(get_response):
         else:
             scopes = decoded['scopes']
 
+        if 'sub' in decoded:
+            sub = decoded['sub']
+        else:
+            sub = None
+
         token_signature = token.split('.')[2]
-        return scopes, token_signature
+        return scopes, token_signature, sub
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
@@ -202,13 +210,16 @@ def authorization_middleware(get_response):
 
         if forced_anonymous or is_options:
             authz_func = authorize_forced_anonymous
+            subject = None
+
         else:
             authorization = request.META.get('HTTP_AUTHORIZATION')
             token_signature = ''
+            sub = None
 
             if authorization:
                 try:
-                    scopes, token_signature = token_data(authorization)
+                    scopes, token_signature, sub = token_data(authorization)
                 except _AuthorizationHeaderError as e:
                     return e.response
             else:
@@ -216,11 +227,13 @@ def authorization_middleware(get_response):
 
             x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
             authz_func = authorize_function(scopes, token_signature, x_unique_id)
+            subject = get_token_subject(sub)
 
             if len(min_scope) > 0 and not authz_func(min_scope):
                 return insufficient_scope()
 
         request.is_authorized_for = authz_func
+        request.get_token_subject = subject
 
         response = get_response(request)
 

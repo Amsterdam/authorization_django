@@ -77,7 +77,8 @@ def tokendata_correct():
     return {
         'iat': now,
         'exp': now + 30,
-        'scopes': ['scope1', 'scope2']
+        'scopes': ['scope1', 'scope2'],
+        'sub': 'test@tester.nl',
     }
 
 
@@ -111,6 +112,12 @@ def test_valid_one_scope_request(middleware, tokendata_correct):
     request = create_request(tokendata_correct, "4")
     middleware(request)
     assert request.is_authorized_for("scope1")
+
+
+def test_get_token_subject(middleware, tokendata_correct):
+    request = create_request(tokendata_correct, "4")
+    middleware(request)
+    assert request.get_token_subject == 'test@tester.nl'
 
 
 def test_invalid_token_requests(
