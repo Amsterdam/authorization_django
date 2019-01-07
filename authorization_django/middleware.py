@@ -119,6 +119,14 @@ def authorization_middleware(get_response):
         response['WWW-Authenticate'] = msg
         return response
 
+    def expired_token():
+        """ Returns an HttpResponse object with a 401
+        """
+        msg = 'Bearer realm="datapunt", error="expired_token"'
+        response = http.HttpResponse('Unauthorized', status=401)
+        response['WWW-Authenticate'] = msg
+        return response
+
     def invalid_token():
         """ Returns an HttpResponse object with a 401
         """
@@ -154,6 +162,9 @@ def authorization_middleware(get_response):
 
         try:
             header = jwt.get_unverified_header(token)
+        except jwt.ExpiredSignatureError:
+            logger.info("Expired token")
+            raise _AuthorizationHeaderError(expired_token())
         except (jwt.InvalidTokenError, jwt.DecodeError):
             logger.exception("API authz problem: JWT decode error while reading header")
             raise _AuthorizationHeaderError(invalid_token())
