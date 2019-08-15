@@ -1,11 +1,13 @@
 import base64
 import collections
-import json
+
 from types import MappingProxyType
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.utils import int_from_bytes
+
+from .config import settings
 
 _Key = collections.namedtuple('Key', 'alg key')
 """Immutable type for key storage"""
@@ -18,34 +20,44 @@ class JWKError(Exception):
     """Error raised when parsing a JWKSet fails."""
 
 
-def load(jwks):
+def load_jwks(jwks):
     """Parse a JWKSet and return a dictionary that maps key IDs on keys."""
-    sign_keys = {}
-    verify_keys = {}
+    signers = []
+    verifiers = []
+
     try:
-        keyset = json.loads(jwks)
         for key in keyset['keys']:
-            for op in key['key_ops']:
-                if op == 'sign':
-                    k = sign_keys
-                elif op == 'verify':
-                    k = verify_keys
+            for op in key.get('key_ops', ['verify']):
+                if key.get('key_ops', '') == 'sign':
+                    keys = signers
                 else:
-                    raise JWKError("Unsupported key operation: {}".format(op))
+                    keys = verifiers
+
                 if key['kty'] == 'oct':
-                    k[key['kid']] = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['k']))
+                    _key = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['k']))
+                elif key['kty'] == 'RSA':
+                    _key = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['x5c']))
                 elif key['kty'] == 'EC':
-                    alg, ec_key = _load_ecdsa(key, op == 'verify')
-                    k[key['kid']] = _Key(alg=alg, key=ec_key)
+                    alg, ec_key = _load_ecdsa(key)
+                    _key = _Key(alg=alg, key=ec_key)
                 else:
                     raise JWKError("Unsupported key type: {}".format(key['kty']))
-    except (KeyError, json.JSONDecodeError) as e:
+
+                keys[key['kid']] = _key
+    except KeyError as e:
         raise JWKError() from e
-    keys = _KeySet(signers=MappingProxyType(sign_keys), verifiers=MappingProxyType(verify_keys))
-    return keys
+
+    return {
+        'signers': signers,
+        'verifiers': verifiers
+    }
 
 
-def _load_ecdsa(key, is_verifier):
+def _load_rsa(key):
+    return _Key(alg=key['alg'], key='bla')
+
+
+def _load_ecdsa(key):
     if key.get('kty') != 'EC':
         raise JWKError('Not an Elliptic curve key')
 
@@ -81,7 +93,7 @@ def _load_ecdsa(key, is_verifier):
         x=int_from_bytes(x, 'big'), y=int_from_bytes(y, 'big'), curve=curve_obj
     )
 
-    if not is_verifier:
+    if key['key_ops'] == 'sign':
         if 'd' not in key:
             raise JWKError("Signing ECDSA keys must contain private key")
         d = base64.urlsafe_b64decode(key.get('d'))

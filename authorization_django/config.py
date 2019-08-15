@@ -5,6 +5,9 @@
 import functools
 import logging
 import types
+import requests
+import json
+from json import JSONDecodeError
 
 from . import jwks
 from django.conf import settings as django_settings
@@ -18,6 +21,7 @@ _settings_key = 'DATAPUNT_AUTHZ'
 # A list of all available settings, with default values
 _available_settings = {
     'JWKS': _required,
+    'KEYCLOAK_JWKS_URL': "",
     'MIN_SCOPE': tuple(),
     'ALWAYS_OK': False,
     'FORCED_ANONYMOUS_ROUTES': tuple(),
@@ -34,10 +38,6 @@ _available_settings = {
 
 # Validator functions and error messages
 _settings_rectifiers = {
-    'JWKS': {
-        'func': lambda s: jwks.load(s),
-        'errmsg': 'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.'
-    },
     'FORCED_ANONYMOUS_ROUTES': {
         'func': lambda s: type(s) in {list, tuple, set} and s,
         'errmsg': 'FORCED_ANONYMOUS_ROUTES must be a list, tuple or set'
@@ -84,19 +84,61 @@ def settings():
     # Get the user-provided settings
     user_settings = dict(getattr(django_settings, _settings_key, {}))
     user_settings_keys = set(user_settings.keys())
+
     # Check for required but missing settings
     missing = _required_settings_keys - user_settings_keys
     if missing:
         raise AuthzConfigurationError(
             'Missing required {} config: {}'.format(_settings_key, missing))
+
     # Check for unknown settings
     unknown = user_settings_keys - _available_settings_keys
     if unknown:
         raise AuthzConfigurationError(
             'Unknown {} config params: {}'.format(_settings_key, unknown))
+
     # Merge defaults with provided settings
     defaults = _available_settings_keys - user_settings_keys
     user_settings.update({key: _available_settings[key] for key in defaults})
 
     _rectify(user_settings)
+
+    user_settings['JWKS'] = load_jwks(user_settings)
     return types.MappingProxyType(user_settings)
+
+
+def load_jwks(user_settings):
+    keyset = {}
+    if 'JWKS' in user_settings:
+        try:
+            keyset = json.loads(user_settings['JWKS'])
+        except JSONDecodeError:
+            raise AuthzConfigurationError('Provided JWKS is invalid JSON')
+
+        try:
+            ks = jwks.load(user_settings['JWKS'])
+            keyset['signers'].update(ks['signers'])
+            keyset['verifiers'].update(ks['verifiers'])
+        except jwks.JWKError:
+            raise AuthzConfigurationError(
+                'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.')
+
+    if 'KEYCLOAK_JWKS_URL' in settings:
+        # Get and add public JWKS from Keycloak
+        # construct url (need base url, realm..)
+        if settings.KEYCLOAK_JWKS_URL:
+            response = requests.get(settings.KEYCLOAK_JWKS_URL)
+            response.raise_for_status()
+            try:
+                keycloak_jwks = response.json()
+            except ValueError:
+                raise(AuthzConfigurationError('Got invalid JSON from Keycloak'))
+            try:
+                ks = jwks.load(keycloak_jwks)
+                keyset['signers'].update(ks['signers'])
+                keyset['verifiers'].update(ks['verifiers'])
+            except jwks.JWKError:
+                raise AuthzConfigurationError('Failed to load Keycloak JWKS')
+
+    return keyset
+

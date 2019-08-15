@@ -5,9 +5,10 @@
 import logging
 import sys
 
+import jwt
+
 from django import http
 from django.conf import settings as django_settings
-import jwt
 
 from .config import settings
 
@@ -64,21 +65,9 @@ def authorization_middleware(get_response):
 
     :param get_response: callable that creates the response object
     :return: response
-    :todo:
-        Two things needs to be done when we can completely remove the Django
-        JWT plugin:
-
-        - Nested function 'middleware' allows both 'JWT' (not IANA-registered)
-          and 'Bearer' as Authorization header prefix; JWT should not be
-          accepted.
-        - The Django JWT middleware does not include the authz claim, so this
-          plugin does not fail if it is not present; this behavior is wrong
-          when we no longer use the Django JWT plugin.
     """
     middleware_settings = settings()
     logger = _create_logger(middleware_settings)
-
-    min_scope = middleware_settings['MIN_SCOPE']
 
     def get_token_subject(sub):
         return sub
@@ -109,8 +98,7 @@ def authorization_middleware(get_response):
 
     def authorize_forced_anonymous(_):
         """ Authorize function for routes that are forced anonymous"""
-        raise Exception(
-            'Should not call is_authorized_for in anonymous routes')
+        raise Exception('Should not call is_authorized_for in anonymous routes')
 
     def insufficient_scope():
         """Returns an HttpResponse object with a 401."""
@@ -146,109 +134,104 @@ def authorization_middleware(get_response):
         response['WWW-Authenticate'] = msg
         return response
 
-    def token_data(authorization):
+    def token_data(authz_header):
         """ Get the token data present in the given authorization header.
         """
         try:
-            prefix, token = authorization.split()
+            prefix, token = authz_header.split()
         except ValueError:
-            logger.warning(
-                'Invalid Authorization header: {}'.format(authorization))
-            raise _AuthorizationHeaderError(invalid_request())
-        if prefix.lower() != 'bearer':
-            logger.warning(
-                'Invalid Authorization header: {}'.format(authorization))
+            logger.warning('Invalid authz header: {}'.format(authz_header))
             raise _AuthorizationHeaderError(invalid_request())
 
+        if prefix.lower() != 'bearer':
+            logger.warning('Invalid authz header: {}'.format(authz_header))
+            raise _AuthorizationHeaderError(invalid_request())
+
+        decoded = decode_token(token)
+
+        if 'scopes' not in decoded:
+            logger.warning('Access token misses scopes claim: {}'.format(token))
+            raise _AuthorizationHeaderError(invalid_token())
+        else:
+            scopes = decoded['scopes']
+
+        sub = decoded.get('sub')
+        token_signature = token.split('.')[2]
+        return scopes, token_signature, sub
+
+    def get_verification_key(header):
+        if 'kid' not in header:
+            logger.exception("Key identifier field missing in header")
+            raise _AuthorizationHeaderError(invalid_token())
+
+        keys = middleware_settings['JWKS']['verifiers']
+        if header['kid'] not in keys:
+            logger.exception("Unknown key identifier: {}".format(header['kid']))
+            raise _AuthorizationHeaderError(invalid_token())
+        return keys[header['kid']]
+
+    def decode_token(token):
         try:
             header = jwt.get_unverified_header(token)
         except jwt.ExpiredSignatureError:
             logger.info("Expired token")
             raise _AuthorizationHeaderError(expired_token())
         except (jwt.InvalidTokenError, jwt.DecodeError):
-            logger.exception("API authz problem: JWT decode error while reading header")
+            logger.exception("JWT decode error while reading header")
             raise _AuthorizationHeaderError(invalid_token())
 
-        if 'kid' not in header:
-            logger.exception("Did not get a valid key identifier")
-            raise _AuthorizationHeaderError(invalid_token())
-
-        keys = middleware_settings['JWKS'].verifiers
-
-        if header['kid'] not in keys:
-            logger.exception("Unknown key identifier: {}".format(header['kid']))
-            raise _AuthorizationHeaderError(invalid_token())
-
-        key = keys[header['kid']]
-
+        key = get_verification_key(header)
         try:
             decoded = jwt.decode(token, key=key.key, algorithms=(key.alg,))
         except jwt.InvalidTokenError:
-            logger.exception('API authz problem: could not decode access '
-                             'token {}'.format(token))
+            logger.exception('Could not decode access token {}'.format(token))
             raise _AuthorizationHeaderError(invalid_token())
-
-        if 'scopes' not in decoded:
-            logger.warning('API authz problem: access token misses '
-                           'authz and scopes claim: {}'.format(token))
-            raise _AuthorizationHeaderError(invalid_token())
-        else:
-            scopes = decoded['scopes']
-
-        if 'sub' in decoded:
-            sub = decoded['sub']
-        else:
-            sub = None
-
-        token_signature = token.split('.')[2]
-        return scopes, token_signature, sub
+        return decoded
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
         """
-        request_path = request.path
-        forced_anonymous = any(
-            request_path.startswith(route)
-            for route in middleware_settings['FORCED_ANONYMOUS_ROUTES'])
 
+        # Config is set to ALWAYS OK, authorisation check disabled
         if middleware_settings['ALWAYS_OK']:
             logger.warning('API authz DISABLED')
             request.is_authorized_for = always_ok
             request.get_token_subject = 'ALWAYS_OK'
             return get_response(request)
 
-        is_options = request.method == 'OPTIONS'
+        # Path is in forced anonymous routes or method is Options
+        forced_anonymous = any(
+            request.path.startswith(route)
+            for route in middleware_settings['FORCED_ANONYMOUS_ROUTES'])
 
-        if forced_anonymous or is_options:
-            authz_func = authorize_forced_anonymous
-            subject = None
+        if forced_anonymous or request.method == 'OPTIONS':
+            request.is_authorized_for = authorize_forced_anonymous
+            request.get_token_subject = None
+            return get_response(request)
 
-        else:
-            authorization = request.META.get('HTTP_AUTHORIZATION')
-            token_signature = ''
-            sub = None
+        # Standard case
+        scopes = []
+        token_signature = ''
+        subject = None
 
-            if authorization:
-                try:
-                    scopes, token_signature, sub = token_data(authorization)
-                except _AuthorizationHeaderError as e:
-                    return e.response
-            else:
-                scopes = []
+        x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
+        authz_header = request.META.get('HTTP_AUTHORIZATION')
 
-            x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
-            authz_func = authorize_function(scopes, token_signature, x_unique_id)
-            subject = get_token_subject(sub)
+        if authz_header:
+            try:
+                scopes, token_signature, subject = token_data(authz_header)
+            except _AuthorizationHeaderError as e:
+                return e.response
 
-            if len(min_scope) > 0 and not authz_func(min_scope):
-                return insufficient_scope()
+        authz_func = authorize_function(scopes, token_signature, x_unique_id)
+
+        min_scope = middleware_settings['MIN_SCOPE']
+        if len(min_scope) > 0 and not authz_func(min_scope):
+            return insufficient_scope()
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
-
-        response = get_response(request)
-
-        return response
+        return get_response(request)
 
     return middleware
