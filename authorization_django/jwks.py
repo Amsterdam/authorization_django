@@ -1,5 +1,6 @@
 import base64
 import collections
+import json
 
 from types import MappingProxyType
 
@@ -7,26 +8,68 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.utils import int_from_bytes
 
-from .config import settings
+from .config import get_settings, AuthzConfigurationError
 
 _Key = collections.namedtuple('Key', 'alg key')
 """Immutable type for key storage"""
 
-_KeySet = collections.namedtuple('KeySet', 'signers verifiers')
-"""Immutable type for key sets"""
+_keyset = None
 
 
 class JWKError(Exception):
     """Error raised when parsing a JWKSet fails."""
 
 
-def load_jwks(jwks):
+def get_keyset():
+    global _keyset
+    if not _keyset:
+        _keyset = init_keyset()
+    return _keyset
+
+
+def init_keyset():
+    settings = get_settings()
+    keyset = {}
+    if 'JWKS' in settings:
+        try:
+            keyset = json.loads(settings['JWKS'])
+        except json.JSONDecodeError:
+            raise AuthzConfigurationError('Provided JWKS is invalid JSON')
+
+        try:
+            ks = load(settings['JWKS'])
+            keyset['signers'].update(ks['signers'])
+            keyset['verifiers'].update(ks['verifiers'])
+        except JWKError:
+            raise AuthzConfigurationError(
+                'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.')
+
+    if 'KEYCLOAK_JWKS_URL' in settings:
+        # Get and add public JWKS from Keycloak
+        # construct url (need base url, realm..)
+        response = requests.get(settings['KEYCLOAK_JWKS_URL'])
+        response.raise_for_status()
+        try:
+            keycloak_jwks = response.json()
+        except ValueError:
+            raise(AuthzConfigurationError('Got invalid JSON from Keycloak'))
+        try:
+            ks = load(keycloak_jwks)
+            keyset['signers'].update(ks['signers'])
+            keyset['verifiers'].update(ks['verifiers'])
+        except JWKError:
+            raise AuthzConfigurationError('Failed to load Keycloak JWKS')
+
+    return keyset
+
+
+def load(jwks):
     """Parse a JWKSet and return a dictionary that maps key IDs on keys."""
-    signers = []
-    verifiers = []
+    signers = {}
+    verifiers = {}
 
     try:
-        for key in keyset['keys']:
+        for key in jwks['keys']:
             for op in key.get('key_ops', ['verify']):
                 if key.get('key_ops', '') == 'sign':
                     keys = signers
@@ -51,10 +94,6 @@ def load_jwks(jwks):
         'signers': signers,
         'verifiers': verifiers
     }
-
-
-def _load_rsa(key):
-    return _Key(alg=key['alg'], key='bla')
 
 
 def _load_ecdsa(key):

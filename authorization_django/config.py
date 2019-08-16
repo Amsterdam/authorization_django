@@ -2,14 +2,9 @@
     authorization_middleware.config
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
-import functools
 import logging
 import types
-import requests
-import json
-from json import JSONDecodeError
 
-from . import jwks
 from django.conf import settings as django_settings
 
 # A sentinel object for required settings
@@ -35,6 +30,8 @@ _available_settings = {
         '-' * 80
     )
 }
+
+_settings = {}
 
 # Validator functions and error messages
 _settings_rectifiers = {
@@ -75,8 +72,14 @@ def _rectify(settings):
                     _settings_key, key, rectifier['errmsg']))
 
 
-@functools.lru_cache(maxsize=1)
-def settings():
+def get_settings():
+    global _settings
+    if not _settings:
+        _settings = init_settings()
+    return _settings
+
+
+def init_settings():
     """ Fetch the middleware settings.
 
     :return dict: settings
@@ -103,42 +106,5 @@ def settings():
 
     _rectify(user_settings)
 
-    user_settings['JWKS'] = load_jwks(user_settings)
     return types.MappingProxyType(user_settings)
-
-
-def load_jwks(user_settings):
-    keyset = {}
-    if 'JWKS' in user_settings:
-        try:
-            keyset = json.loads(user_settings['JWKS'])
-        except JSONDecodeError:
-            raise AuthzConfigurationError('Provided JWKS is invalid JSON')
-
-        try:
-            ks = jwks.load(user_settings['JWKS'])
-            keyset['signers'].update(ks['signers'])
-            keyset['verifiers'].update(ks['verifiers'])
-        except jwks.JWKError:
-            raise AuthzConfigurationError(
-                'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.')
-
-    if 'KEYCLOAK_JWKS_URL' in settings:
-        # Get and add public JWKS from Keycloak
-        # construct url (need base url, realm..)
-        if settings.KEYCLOAK_JWKS_URL:
-            response = requests.get(settings.KEYCLOAK_JWKS_URL)
-            response.raise_for_status()
-            try:
-                keycloak_jwks = response.json()
-            except ValueError:
-                raise(AuthzConfigurationError('Got invalid JSON from Keycloak'))
-            try:
-                ks = jwks.load(keycloak_jwks)
-                keyset['signers'].update(ks['signers'])
-                keyset['verifiers'].update(ks['verifiers'])
-            except jwks.JWKError:
-                raise AuthzConfigurationError('Failed to load Keycloak JWKS')
-
-    return keyset
 

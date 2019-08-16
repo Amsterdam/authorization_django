@@ -32,7 +32,7 @@ with open('README.rst', encoding='utf-8') as f:
 
 version = '0.2.24'
 packages = ['authorization_django']
-requires = ['Django>=1.10.3', 'PyJWT>=1.5.2', 'cryptography>=2.3']
+requires = ['Django>=1.10.3', 'PyJWT>=1.5.2', 'cryptography>=2.3', 'requests>=2.22']
 requires_test = ['pytest>=3.0.5', 'pytest-cov>=2.4.0']
 requires_extras = {
     'dev': [] + requires_test,

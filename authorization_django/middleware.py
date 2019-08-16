@@ -10,7 +10,8 @@ import jwt
 from django import http
 from django.conf import settings as django_settings
 
-from .config import settings
+from .config import get_settings
+from .jwks import get_keyset
 
 
 def _create_logger(middleware_settings):
@@ -66,7 +67,7 @@ def authorization_middleware(get_response):
     :param get_response: callable that creates the response object
     :return: response
     """
-    middleware_settings = settings()
+    middleware_settings = get_settings()
     logger = _create_logger(middleware_settings)
 
     def get_token_subject(sub):
@@ -164,11 +165,12 @@ def authorization_middleware(get_response):
             logger.exception("Key identifier field missing in header")
             raise _AuthorizationHeaderError(invalid_token())
 
-        keys = middleware_settings['JWKS']['verifiers']
-        if header['kid'] not in keys:
+        kid = header['kid']
+        keyset = get_keyset()
+        if kid not in keyset['verifiers']:
             logger.exception("Unknown key identifier: {}".format(header['kid']))
             raise _AuthorizationHeaderError(invalid_token())
-        return keys[header['kid']]
+        return keyset['verifiers'][kid]
 
     def decode_token(token):
         try:

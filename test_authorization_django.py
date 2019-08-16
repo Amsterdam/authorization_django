@@ -33,13 +33,15 @@ conf.settings.configure(DEBUG=True)
 
 
 def reload_settings(s):
-    authorization_django.config.settings.cache_clear()  # @UndefinedVariable
     conf.settings.DATAPUNT_AUTHZ = s
+    authorization_django.jwks._keyset = None
+    authorization_django.config.init_settings()
+    authorization_django.jwks.get_keyset()
 
 
 def create_token(tokendata, kid):
-    keys = jwks.load(json.dumps(JWKS))
-    key = keys.signers[kid]
+    keys = jwks.load(JWKS)
+    key = keys['signers'][kid]
     return jwt.encode(tokendata, key.key, algorithm=key.alg, headers={'kid': kid})
 
 
