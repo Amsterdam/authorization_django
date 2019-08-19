@@ -34,9 +34,8 @@ conf.settings.configure(DEBUG=True)
 
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
-    authorization_django.jwks._keyset = None
-    authorization_django.config._settings = None
-    authorization_django.jwks.get_keyset()
+    authorization_django.config.init_settings()
+    authorization_django.jwks.init_keyset()
 
 
 def create_token(tokendata, kid):

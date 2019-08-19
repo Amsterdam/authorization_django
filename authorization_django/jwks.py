@@ -23,13 +23,14 @@ class JWKError(Exception):
 def get_keyset():
     global _keyset
     if not _keyset:
-        _keyset = init_keyset()
+        init_keyset()
     return _keyset
 
 
 def init_keyset():
+    global _keyset
     settings = get_settings()
-    keyset = {
+    _keyset = {
         'signers': {},
         'verifiers': {}
     }
@@ -41,8 +42,8 @@ def init_keyset():
 
         try:
             ks = load(jwks_json)
-            keyset['signers'].update(ks['signers'])
-            keyset['verifiers'].update(ks['verifiers'])
+            _keyset['signers'].update(ks['signers'])
+            _keyset['verifiers'].update(ks['verifiers'])
         except JWKError:
             raise AuthzConfigurationError(
                 'Must provide a valid JWKSet. See RFC 7517 and 7518 for details.')
@@ -57,14 +58,13 @@ def init_keyset():
             raise(AuthzConfigurationError('Got invalid JSON from Keycloak'))
         try:
             ks = load(keycloak_jwks)
-            keyset['signers'].update(ks['signers'])
-            keyset['verifiers'].update(ks['verifiers'])
+            _keyset['signers'].update(ks['signers'])
+            _keyset['verifiers'].update(ks['verifiers'])
         except JWKError:
             raise AuthzConfigurationError('Failed to load Keycloak JWKS')
 
-    if len(keyset['verifiers']) == 0:
+    if len(_keyset['verifiers']) == 0:
         raise AuthzConfigurationError('No verifier keys loaded!')
-    return keyset
 
 
 def load(jwks):

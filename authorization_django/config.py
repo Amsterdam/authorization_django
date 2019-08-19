@@ -72,14 +72,19 @@ def _rectify(settings):
                     _settings_key, key, rectifier['errmsg']))
 
 
+def init_settings():
+    global _settings
+    _settings = load_settings()
+
+
 def get_settings():
     global _settings
     if not _settings:
-        _settings = init_settings()
+        init_settings()
     return _settings
 
 
-def init_settings():
+def load_settings():
     """ Fetch the middleware settings.
 
     :return dict: settings
