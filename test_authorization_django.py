@@ -35,7 +35,7 @@ conf.settings.configure(DEBUG=True)
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
     authorization_django.jwks._keyset = None
-    authorization_django.config.init_settings()
+    authorization_django.config._settings = None
     authorization_django.jwks.get_keyset()
 
 
@@ -96,10 +96,10 @@ def test_missing_conf():
 
 
 def test_bad_jwks():
-    reload_settings({
-        'JWKS': 'iamnotajwks'
-    })
     with pytest.raises(authorization_django.config.AuthzConfigurationError):
+        reload_settings({
+            'JWKS': 'iamnotajwks'
+        })
         authorization_django.authorization_middleware(None)
 
 
@@ -149,7 +149,7 @@ def test_malformed_requests(middleware, tokendata_correct, capfd):
         assert 'WWW-Authenticate' in response
         assert 'invalid_request' in response['WWW-Authenticate']
         _, err = capfd.readouterr()
-        assert 'Invalid Authorization header' in err
+        assert 'Invalid authz header' in err
 
 
 def test_no_authorization_header(middleware):
@@ -198,6 +198,6 @@ def test_options_works_while_min_scope():
 def test_unknown_config_param():
     testsettings = TESTSETTINGS.copy()
     testsettings['lalaland'] = 'oscar'
-    reload_settings(testsettings)
     with pytest.raises(authorization_django.config.AuthzConfigurationError):
+        reload_settings(testsettings)
         authorization_django.authorization_middleware(None)

@@ -151,7 +151,9 @@ def authorization_middleware(get_response):
         decoded = decode_token(token)
 
         if 'scopes' not in decoded:
-            logger.warning('Access token misses scopes claim: {}'.format(token))
+            logger.warning(
+                'API authz problem: access token misses scopes claim: {}'.format(token)
+            )
             raise _AuthorizationHeaderError(invalid_token())
         else:
             scopes = decoded['scopes']
@@ -168,7 +170,7 @@ def authorization_middleware(get_response):
         kid = header['kid']
         keyset = get_keyset()
         if kid not in keyset['verifiers']:
-            logger.exception("Unknown key identifier: {}".format(header['kid']))
+            logger.exception('Unknown key identifier: {}'.format(header['kid']))
             raise _AuthorizationHeaderError(invalid_token())
         return keyset['verifiers'][kid]
 
@@ -179,14 +181,16 @@ def authorization_middleware(get_response):
             logger.info("Expired token")
             raise _AuthorizationHeaderError(expired_token())
         except (jwt.InvalidTokenError, jwt.DecodeError):
-            logger.exception("JWT decode error while reading header")
+            logger.exception('API authz problem: JWT decode error while reading header')
             raise _AuthorizationHeaderError(invalid_token())
 
         key = get_verification_key(header)
         try:
             decoded = jwt.decode(token, key=key.key, algorithms=(key.alg,))
         except jwt.InvalidTokenError:
-            logger.exception('Could not decode access token {}'.format(token))
+            logger.exception(
+                'API authz problem: could not decode access token {}'.format(token)
+            )
             raise _AuthorizationHeaderError(invalid_token())
         return decoded
 
