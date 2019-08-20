@@ -70,10 +70,10 @@ def authorization_middleware(get_response):
     middleware_settings = get_settings()
     logger = _create_logger(middleware_settings)
 
-    def get_token_subject(sub):
-        return sub
+    # def get_token_subject(sub):
+    #     return sub
 
-    def always_ok(*args, **kwargs):
+    def always_ok(*_args, **_kwargs):
         return True
 
     def authorize_function(scopes, token_signature, x_unique_id=None):

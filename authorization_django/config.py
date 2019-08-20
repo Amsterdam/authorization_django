@@ -36,7 +36,7 @@ _settings = {}
 # Validator functions and error messages
 _settings_rectifiers = {
     'FORCED_ANONYMOUS_ROUTES': {
-        'func': lambda s: type(s) in {list, tuple, set} and s,
+        'func': lambda s: s if type(s) in {list, tuple, set} else False,
         'errmsg': 'FORCED_ANONYMOUS_ROUTES must be a list, tuple or set'
     }
 }
@@ -66,10 +66,12 @@ def _rectify(settings):
                     'Error validating {}->{}: {}'.format(
                         _settings_key, key, rectifier['errmsg']))
             settings[key] = new_value
-        except:
+        except Exception as e:
             raise AuthzConfigurationError(
                 'Error validating {}->{}: {}'.format(
-                    _settings_key, key, rectifier['errmsg']))
+                    _settings_key, key, rectifier['errmsg']
+                )
+            ) from e
 
 
 def init_settings():
@@ -112,4 +114,3 @@ def load_settings():
     _rectify(user_settings)
 
     return types.MappingProxyType(user_settings)
-

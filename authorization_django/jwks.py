@@ -1,7 +1,6 @@
 import base64
 import collections
 import json
-from types import MappingProxyType
 
 import requests
 from cryptography.hazmat.backends import default_backend
