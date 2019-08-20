@@ -86,7 +86,7 @@ def load(jwks):
                         alg=key['alg'],
                         key=b'-----BEGIN RSA PRIVATE KEY-----\n' +
                             base64.encodebytes(base64.b64decode(key['x5c'][0])) +
-                            '-----END RSA PRIVATE KEY-----')
+                            b'-----END RSA PRIVATE KEY-----')
                     print(_key)
                 elif key['kty'] == 'EC':
                     alg, ec_key = _load_ecdsa(key, op)
