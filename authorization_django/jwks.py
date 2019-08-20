@@ -82,7 +82,7 @@ def load(jwks):
                 if key['kty'] == 'oct':
                     _key = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['k']))
                 elif key['kty'] == 'RSA':
-                    _key = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['x5c']))
+                    _key = _Key(alg=key['alg'], key=base64.urlsafe_b64decode(key['x5c'][0]))
                 elif key['kty'] == 'EC':
                     alg, ec_key = _load_ecdsa(key, op)
                     _key = _Key(alg=alg, key=ec_key)
