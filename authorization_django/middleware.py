@@ -4,11 +4,11 @@
 """
 import logging
 import sys
-
-import jwt
+import json
 
 from django import http
 from django.conf import settings as django_settings
+from jwcrypto.jwt import JWT, JWTExpired
 
 from .config import get_settings
 from .jwks import get_keyset
@@ -69,9 +69,6 @@ def authorization_middleware(get_response):
     """
     middleware_settings = get_settings()
     logger = _create_logger(middleware_settings)
-
-    # def get_token_subject(sub):
-    #     return sub
 
     def always_ok(*_args, **_kwargs):
         return True
@@ -139,7 +136,7 @@ def authorization_middleware(get_response):
         """ Get the token data present in the given authorization header.
         """
         try:
-            prefix, token = authz_header.split()
+            prefix, raw_jwt = authz_header.split()
         except ValueError:
             logger.warning('Invalid authz header: {}'.format(authz_header))
             raise _AuthorizationHeaderError(invalid_request())
@@ -148,51 +145,46 @@ def authorization_middleware(get_response):
             logger.warning('Invalid authz header: {}'.format(authz_header))
             raise _AuthorizationHeaderError(invalid_request())
 
-        decoded = decode_token(token)
-
-        if 'scopes' not in decoded:
-            logger.warning(
-                'API authz problem: access token misses scopes claim: {}'.format(token)
-            )
-            raise _AuthorizationHeaderError(invalid_token())
-        else:
-            scopes = decoded['scopes']
-
-        sub = decoded.get('sub')
-        token_signature = token.split('.')[2]
+        jwt = decode_token(raw_jwt)
+        claims = get_claims(jwt)
+        sub = claims['sub']
+        scopes = claims['scopes']
+        token_signature = raw_jwt.split('.')[2]
         return scopes, token_signature, sub
 
-    def get_verification_key(header):
-        if 'kid' not in header:
-            logger.exception("Key identifier field missing in header")
-            raise _AuthorizationHeaderError(invalid_token())
-
-        kid = header['kid']
-        keyset = get_keyset()
-        if kid not in keyset['verifiers']:
-            logger.exception('Unknown key identifier: {}'.format(header['kid']))
-            raise _AuthorizationHeaderError(invalid_token())
-        return keyset['verifiers'][kid]
-
-    def decode_token(token):
+    def decode_token(raw_jwt):
         try:
-            header = jwt.get_unverified_header(token)
-        except jwt.ExpiredSignatureError:
-            logger.info("Expired token")
-            raise _AuthorizationHeaderError(expired_token())
-        except (jwt.InvalidTokenError, jwt.DecodeError):
-            logger.exception('API authz problem: JWT decode error while reading header')
-            raise _AuthorizationHeaderError(invalid_token())
-
-        key = get_verification_key(header)
-        try:
-            decoded = jwt.decode(token, key=key.key, algorithms=(key.alg,))
-        except jwt.InvalidTokenError:
+            jwt = JWT(jwt=raw_jwt, key=get_keyset())
+        except JWTExpired:
             logger.exception(
-                'API authz problem: could not decode access token {}'.format(token)
+                'API authz problem: could not decode access token {}'.format(raw_jwt)
             )
             raise _AuthorizationHeaderError(invalid_token())
-        return decoded
+        return jwt
+
+    def get_claims(jwt):
+        claims = json.loads(jwt.claims)
+        if claims.get('scopes'):
+            # Authz token structure
+            return {
+                'sub': claims['sub'],
+                'scopes': claims['scopes']
+            }
+        elif claims.get('realm_access'):
+            # Keycloak token structure
+            return {
+                'sub': claims['sub'],
+                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']}
+            }
+        logger.warning(
+            'API authz problem: access token misses scopes claim'
+        )
+        raise _AuthorizationHeaderError(invalid_token())
+
+    def convert_scope(scope):
+        """ Convert Keycloak role to authz style scope
+        """
+        return scope.upper().replace("_", "/")
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
