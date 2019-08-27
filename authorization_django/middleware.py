@@ -156,9 +156,13 @@ def authorization_middleware(get_response):
         try:
             jwt = JWT(jwt=raw_jwt, key=get_keyset())
         except JWTExpired:
-            logger.exception(
+            logger.info(
                 'API authz problem: could not decode access token {}'.format(raw_jwt)
             )
+            raise _AuthorizationHeaderError(invalid_token())
+        except ValueError as e:
+            logger.warning(
+                'API authz problem: {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
         return jwt
 

@@ -5,6 +5,7 @@
 import json
 import time
 import types
+from base64 import urlsafe_b64encode
 
 import pytest
 
@@ -78,15 +79,25 @@ def create_token(tokendata, kid, alg):
     return token
 
 
-def create_request(tokendata, kid, prefix='Bearer'):
+def create_unsigned_token(tokendata):
+    header = urlsafe_b64encode(json.dumps({"typ": "JWT"}).encode())
+    tokendata = urlsafe_b64encode(json.dumps(tokendata).encode())
+    return "{}.{}".format(header, tokendata)
+
+
+def create_request(tokendata, kid=None, prefix='Bearer'):
     """ Django WSGI Request mock. A Django request object contains a META dict
     that contains the HTTP headers per the WSGI spec, PEP333 (meaning,
     uppercase, prefixed with HTTP_ and dashes transformed to underscores).
     """
-    token = create_token(tokendata, kid, ALG_LOOKUP[kid])
+    if not kid:
+        token = create_unsigned_token(tokendata)
+    else:
+        token = create_token(tokendata, kid, ALG_LOOKUP[kid]).serialize()
+
     return types.SimpleNamespace(
         META={
-            'HTTP_AUTHORIZATION': "{} {}".format(prefix, token.serialize())
+            'HTTP_AUTHORIZATION': "{} {}".format(prefix, token)
         },
         path='/', method='GET')
 
@@ -158,10 +169,11 @@ def test_get_token_subject(middleware, tokendata_correct):
 
 def test_invalid_token_requests(
         middleware, tokendata_missing_scopes,
-        tokendata_expired, capfd):
+        tokendata_expired, tokendata_correct, capfd):
     requests = (
         create_request(tokendata_expired, "4"),
         create_request(tokendata_missing_scopes, "5"),
+        create_request(tokendata_correct)
     )
     for request in requests:
         response = middleware(request)
