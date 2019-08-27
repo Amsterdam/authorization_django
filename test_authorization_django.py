@@ -6,10 +6,9 @@ import json
 import time
 import types
 
-import jwt
 import pytest
 
-
+from jwcrypto.jwt import JWT
 from django import conf
 import authorization_django.config
 import authorization_django
@@ -48,6 +47,15 @@ JWKS = {
         }]
 }
 
+ALG_LOOKUP = {
+    "1": "HS256",
+    "2": "HS384",
+    "3": "HS512",
+    "4": "ES256",
+    "5": "ES384",
+    "6": "ES512"
+}
+
 TESTSETTINGS = {
     'JWKS': json.dumps(JWKS),
     'LOGGER_NAME': 'authztest'
@@ -63,10 +71,11 @@ def reload_settings(s):
     authorization_django.jwks.init_keyset()
 
 
-def create_token(tokendata, kid):
-    keys = jwks.load(JWKS)
-    key = keys['signers'][kid]
-    return jwt.encode(tokendata, key.key, algorithm=key.alg, headers={'kid': kid})
+def create_token(tokendata, kid, alg):
+    key = jwks.get_keyset().get_key(kid)
+    token = JWT(header={"alg": alg, "kid": kid}, claims=tokendata)
+    token.make_signed_token(key)
+    return token
 
 
 def create_request(tokendata, kid, prefix='Bearer'):
@@ -74,9 +83,10 @@ def create_request(tokendata, kid, prefix='Bearer'):
     that contains the HTTP headers per the WSGI spec, PEP333 (meaning,
     uppercase, prefixed with HTTP_ and dashes transformed to underscores).
     """
+    token = create_token(tokendata, kid, ALG_LOOKUP[kid])
     return types.SimpleNamespace(
         META={
-            'HTTP_AUTHORIZATION': "{} {}".format(prefix, str(create_token(tokendata, kid), 'utf-8'))
+            'HTTP_AUTHORIZATION': "{} {}".format(prefix, token.serialize())
         },
         path='/', method='GET')
 
