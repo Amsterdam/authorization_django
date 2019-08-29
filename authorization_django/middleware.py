@@ -153,8 +153,9 @@ def authorization_middleware(get_response):
         return scopes, token_signature, sub
 
     def decode_token(raw_jwt):
+        settings = get_settings()
         try:
-            jwt = JWT(jwt=raw_jwt, key=get_keyset())
+            jwt = JWT(jwt=raw_jwt, key=get_keyset(), algs=settings['ALLOWED_SIGNING_ALGORITHMS'])
         except JWTExpired:
             logger.info(
                 'API authz problem: could not decode access token {}'.format(raw_jwt)

@@ -16,14 +16,15 @@ import authorization_django
 from authorization_django import jwks
 
 JWKS = {
-    "keys": [{
-        "kty": "oct", "key_ops": ["sign", "verify"], "kid": "1", "alg": "HS256",
-        "k": "aWFtYXN5bW1ldHJpY2tleQ=="
-    },  # is iamasymmetrickey base64 encoded
+    "keys": [
+        {
+            "kty": "oct", "key_ops": ["sign", "verify"], "kid": "1", "alg": "HS256",
+            "k": "aWFtYXN5bW1ldHJpY2tleQ=="
+        },  # is iamasymmetrickey base64 encoded
         {
             "kty": "oct", "key_ops": ["sign", "verify"], "kid": "2",
             "alg": "HS384", "k": "aWFtYW5vdGhlcnN5bW1ldHJpY2tleQ=="
-        },  # id iamanothersymmetrickey base64 encoded
+        },  # is iamanothersymmetrickey base64 encoded
         {
             "kty": "oct", "key_ops": ["sign", "verify"], "kid": "3",
             "alg": "HS512", "k": "aWFteWV0YW5vdGhlcnN5bW1ldHJpY2tleQ=="
@@ -33,19 +34,22 @@ JWKS = {
             "crv": "P-256", "x": "PTTjIY84aLtaZCxLTrG_d8I0G6YKCV7lg8M4xkKfwQ4=",
             "y": "ank6KA34vv24HZLXlChVs85NEGlpg2sbqNmR_BcgyJU=",
             "d": "9GJquUJf57a9sev-u8-PoYlIezIPqI_vGpIaiu4zyZk="
-        }, {
+        },
+        {
             "kty": "EC", "key_ops": ["sign", "verify"], "kid": "5",
             "crv": "P-384",
             "x": "IDC-5s6FERlbC4Nc_4JhKW8sd51AhixtMdNUtPxhRFP323QY6cwWeIA3leyZhz-J",
             "y": "eovmN9ocANS8IJxDAGSuC1FehTq5ZFLJU7XSPg36zHpv4H2byKGEcCBiwT4sFJsy",
             "d": "xKPj5IXjiHpQpLOgyMGo6lg_DUp738SuXkiugCFMxbGNKTyTprYPfJz42wTOXbtd"
-        }, {
+        },
+        {
             "kty": "EC", "key_ops": ["sign", "verify"], "kid": "6",
             "crv": "P-521",
             "x": "AKarqFSECj9mH4scD_RSGD1lzBzomFWz63hvqDc8PkElCKByOUIo_N8jN5mpJS2RfbIj2d9bEDnpwQGLvu9kXG97",
             "y": "AF5ZmIGpat-yKHoP985gfnASPPZuhXGqPg4QdsJzdV4sY1GP45DOxwjZOmvhOzKzezmB-SSOWweMgUDNHoJreAXQ",
             "d": "ALV2ghdOJbsaT4QFwqbOky6TwkHEC89pQ-bUe7kt5A7-8vXI2Ihi2YEtygCQ5PwtPiTxjRs5mgzVDRp5LwHyYzvn"
-        }]
+        }
+    ]
 }
 
 ALG_LOOKUP = {
@@ -80,7 +84,7 @@ def create_token(tokendata, kid, alg):
 
 
 def create_unsigned_token(tokendata):
-    header = urlsafe_b64encode(json.dumps({"typ": "JWT"}).encode())
+    header = urlsafe_b64encode(json.dumps({"typ": "JWT", "alg": "none"}).encode())
     tokendata = urlsafe_b64encode(json.dumps(tokendata).encode())
     return "{}.{}".format(header, tokendata)
 
@@ -148,6 +152,19 @@ def test_bad_jwks():
         authorization_django.authorization_middleware(None)
 
 
+def test_jwks_from_url(requests_mock, tokendata_correct):
+    jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    requests_mock.get(jwks_url, text=json.dumps(JWKS))
+    reload_settings({
+        'JWKS': None,
+        'KEYCLOAK_JWKS_URL': jwks_url
+    })
+    middleware = authorization_django.authorization_middleware(lambda r: object())
+    request = create_request(tokendata_correct, "4")
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+
 def test_hmac_keys_valid(middleware, tokendata_correct):
     for kid in ("1", "2", "3", "4", "5", "6"):
         request = create_request(tokendata_correct, kid)
@@ -170,12 +187,12 @@ def test_get_token_subject(middleware, tokendata_correct):
 def test_invalid_token_requests(
         middleware, tokendata_missing_scopes,
         tokendata_expired, tokendata_correct, capfd):
-    requests = (
+    reqs = (
         create_request(tokendata_expired, "4"),
         create_request(tokendata_missing_scopes, "5"),
-        create_request(tokendata_correct)
+        create_request(tokendata_correct)  # unsigned token
     )
-    for request in requests:
+    for request in reqs:
         response = middleware(request)
         assert response.status_code == 401
         assert 'WWW-Authenticate' in response
@@ -185,11 +202,11 @@ def test_invalid_token_requests(
 
 
 def test_malformed_requests(middleware, tokendata_correct, capfd):
-    requests = (
+    reqs = (
         create_request(tokendata_correct, "3", prefix='Bad'),
         create_request(tokendata_correct, "2", prefix='Even Worse'),
     )
-    for request in requests:
+    for request in reqs:
         response = middleware(request)
         assert response.status_code == 400
         assert 'WWW-Authenticate' in response

@@ -8,14 +8,7 @@ from jwcrypto.common import JWException
 
 from .config import get_settings, AuthzConfigurationError
 
-_Key = collections.namedtuple('Key', 'alg key')
-"""Immutable type for key storage"""
-
 _keyset = None
-
-
-class JWKError(Exception):
-    """Error raised when parsing a JWKSet fails."""
 
 
 def get_keyset():
@@ -30,22 +23,26 @@ def init_keyset():
     settings = get_settings()
     _keyset = JWKSet()
 
-    if 'JWKS' in settings:
+    if settings.get('JWKS'):
         try:
             _keyset.import_keyset(settings['JWKS'])
         except JWException as e:
-            raise AuthzConfigurationError("Failed to load JWK from settings") from e
+            raise AuthzConfigurationError("Failed to import keyset from settings") from e
 
-    if 'KEYCLOAK_JWKS_URL' in settings and settings['KEYCLOAK_JWKS_URL']:
-        # Get and add public JWKS from Keycloak
-        response = requests.get(settings['KEYCLOAK_JWKS_URL'])
-        response.raise_for_status()
-
+    if settings.get('KEYCLOAK_JWKS_URL'):
+        # Get public JWKS from Keycloak
+        try:
+            jwks_url = settings['KEYCLOAK_JWKS_URL']
+            response = requests.get(jwks_url)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise AuthzConfigurationError(
+                "Failed to get Keycloak keyset from url: {}, error: {}".format(jwks_url, e)
+            )
         try:
             _keyset.import_keyset(response.text)
         except JWException as e:
-            raise AuthzConfigurationError("Failed to load JWK from url") from e
+            raise AuthzConfigurationError("Failed to import Keycloak keyset") from e
 
     if len(_keyset['keys']) == 0:
-        raise AuthzConfigurationError('No verifier keys loaded!')
-
+        raise AuthzConfigurationError('No keys loaded!')

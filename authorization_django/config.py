@@ -15,8 +15,13 @@ _settings_key = 'DATAPUNT_AUTHZ'
 
 # A list of all available settings, with default values
 _available_settings = {
-    'JWKS': _required,
+    'JWKS': "",
     'KEYCLOAK_JWKS_URL': "",
+    'ALLOWED_SIGNING_ALGORITHMS': [
+        'HS256', 'HS384', 'HS512',
+        'ES256', 'ES384', 'ES512',
+        'RS256', 'RS384', 'RS512'
+    ],
     'MIN_SCOPE': tuple(),
     'ALWAYS_OK': False,
     'FORCED_ANONYMOUS_ROUTES': tuple(),
@@ -33,14 +38,6 @@ _available_settings = {
 
 _settings = {}
 
-# Validator functions and error messages
-_settings_rectifiers = {
-    'FORCED_ANONYMOUS_ROUTES': {
-        'func': lambda s: s if type(s) in {list, tuple, set} else False,
-        'errmsg': 'FORCED_ANONYMOUS_ROUTES must be a list, tuple or set'
-    }
-}
-
 # Preprocessing: the set of all available configuration keys
 _available_settings_keys = set(_available_settings.keys())
 
@@ -52,26 +49,6 @@ _required_settings_keys = {
 
 class AuthzConfigurationError(Exception):
     """ Error for missing / invalid configuration"""
-
-
-def _rectify(settings):
-    """ Rectify (and validate) the given settings using the functions in
-    :data:`_settings_rectifiers`.
-    """
-    for key, rectifier in _settings_rectifiers.items():
-        try:
-            new_value = rectifier['func'](settings[key])
-            if new_value is False:
-                raise AuthzConfigurationError(
-                    'Error validating {}->{}: {}'.format(
-                        _settings_key, key, rectifier['errmsg']))
-            settings[key] = new_value
-        except Exception as e:
-            raise AuthzConfigurationError(
-                'Error validating {}->{}: {}'.format(
-                    _settings_key, key, rectifier['errmsg']
-                )
-            ) from e
 
 
 def init_settings():
@@ -111,6 +88,9 @@ def load_settings():
     defaults = _available_settings_keys - user_settings_keys
     user_settings.update({key: _available_settings[key] for key in defaults})
 
-    _rectify(user_settings)
+    if not type(user_settings['FORCED_ANONYMOUS_ROUTES']) in {list, tuple, set}:
+        raise AuthzConfigurationError(
+            'FORCED_ANONYMOUS_ROUTES must be a list, tuple or set'
+        )
 
     return types.MappingProxyType(user_settings)
