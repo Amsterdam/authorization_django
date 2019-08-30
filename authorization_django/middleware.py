@@ -79,7 +79,7 @@ def authorization_middleware(get_response):
 
         :return func:
         """
-        log_msg_scopes = 'Granted access (needed: {}, granted: {}, token: {})'
+        log_msg_scopes = 'Granted access (needed: {}, granted: {}, token signature: {})'
 
         def is_authorized(*needed_scopes):
             granted_scopes = set(scopes)
@@ -172,13 +172,13 @@ def authorization_middleware(get_response):
         if claims.get('scopes'):
             # Authz token structure
             return {
-                'sub': claims['sub'],
+                'sub': claims.get('sub'),
                 'scopes': claims['scopes']
             }
         elif claims.get('realm_access'):
             # Keycloak token structure
             return {
-                'sub': claims['sub'],
+                'sub': claims.get('sub'),
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']}
             }
         logger.warning(
