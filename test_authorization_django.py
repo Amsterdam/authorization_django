@@ -153,6 +153,9 @@ def test_bad_jwks():
 
 
 def test_jwks_from_url(requests_mock, tokendata_correct):
+    """ Verify that loading keyset from url works, by checking that is_authorized_for
+    method correctly evaluates that user has the scopes mentioned in the token data
+    """
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
     requests_mock.get(jwks_url, text=json.dumps(JWKS))
     reload_settings({
