@@ -8,7 +8,7 @@ import json
 
 from django import http
 from django.conf import settings as django_settings
-from jwcrypto.jwt import JWT, JWTExpired
+from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
 from .config import get_settings
 from .jwks import get_keyset
@@ -158,8 +158,11 @@ def authorization_middleware(get_response):
             jwt = JWT(jwt=raw_jwt, key=get_keyset(), algs=settings['ALLOWED_SIGNING_ALGORITHMS'])
         except JWTExpired:
             logger.info(
-                'API authz problem: could not decode access token {}'.format(raw_jwt)
+                'API authz problem: token expired {}'.format(raw_jwt)
             )
+            raise _AuthorizationHeaderError(invalid_token())
+        except JWTMissingKey as e:
+            logger.warning('API authz problem: unknown key. {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
         except ValueError as e:
             logger.warning(
