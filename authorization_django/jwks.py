@@ -1,3 +1,4 @@
+import logging
 import base64
 import collections
 import json
@@ -9,6 +10,7 @@ from jwcrypto.common import JWException
 from .config import get_settings, AuthzConfigurationError
 
 _keyset = None
+logger = logging.getLogger(__name__)
 
 
 def get_keyset():
@@ -28,11 +30,12 @@ def init_keyset():
             _keyset.import_keyset(settings['JWKS'])
         except JWException as e:
             raise AuthzConfigurationError("Failed to import keyset from settings") from e
+        logger.info('Loaded JWKS from JWKS setting.')
 
-    if settings.get('KEYCLOAK_JWKS_URL'):
-        # Get public JWKS from Keycloak
+    if settings.get('JWKS_URL'):
+        # Get public JWKS from url
         try:
-            jwks_url = settings['KEYCLOAK_JWKS_URL']
+            jwks_url = settings['JWKS_URL']
             response = requests.get(jwks_url)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
@@ -43,6 +46,7 @@ def init_keyset():
             _keyset.import_keyset(response.text)
         except JWException as e:
             raise AuthzConfigurationError("Failed to import Keycloak keyset") from e
+        logger.info('Loaded JWKS from JWKS_URL setting {}'.format(jwks_url))
 
     if len(_keyset['keys']) == 0:
         raise AuthzConfigurationError('No keys loaded!')

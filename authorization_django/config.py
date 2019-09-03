@@ -16,7 +16,7 @@ _settings_key = 'DATAPUNT_AUTHZ'
 # A list of all available settings, with default values
 _available_settings = {
     'JWKS': "",
-    'KEYCLOAK_JWKS_URL': "",
+    'JWKS_URL': "",
     'ALLOWED_SIGNING_ALGORITHMS': [
         'HS256', 'HS384', 'HS512',
         'ES256', 'ES384', 'ES512',
@@ -88,9 +88,9 @@ def load_settings():
     defaults = _available_settings_keys - user_settings_keys
     user_settings.update({key: _available_settings[key] for key in defaults})
 
-    if not user_settings.get('JWKS') and not user_settings.get('KEYCLOAK_JWKS_URL'):
+    if not user_settings.get('JWKS') and not user_settings.get('JWKS_URL'):
         raise AuthzConfigurationError(
-            'Either JWKS or KEYCLOAK_JWKS_URL must be set, or both'
+            'Either JWKS or JWKS_URL must be set, or both'
         )
 
     if not type(user_settings['FORCED_ANONYMOUS_ROUTES']) in {list, tuple, set}:

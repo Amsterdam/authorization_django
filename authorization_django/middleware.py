@@ -3,44 +3,13 @@
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 import logging
-import sys
 import json
 
 from django import http
-from django.conf import settings as django_settings
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
 from .config import get_settings
 from .jwks import get_keyset
-
-
-def _create_logger(middleware_settings):
-    """ Creates a logger using the given settings.
-    """
-    if django_settings.DEBUG:
-        level = logging.DEBUG
-        formatter = logging.Formatter(
-            middleware_settings['LOGGER_FORMAT_DEBUG'])
-    else:
-        level = middleware_settings['LOGGER_LEVEL']
-        formatter = logging.Formatter(middleware_settings['LOGGER_FORMAT'])
-
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(level)
-    handler.setFormatter(formatter)
-
-    logger = logging.getLogger(middleware_settings['LOGGER_NAME'])
-
-    # If in some strange way this logger already exists we make sure to delete
-    # its existing handlers
-    del logger.handlers[:]
-
-    logger.addHandler(handler)
-
-    # Disable propagation by default
-    logger.propagate = False
-
-    return logger
 
 
 class _AuthorizationHeaderError(Exception):
@@ -68,7 +37,7 @@ def authorization_middleware(get_response):
     :return: response
     """
     middleware_settings = get_settings()
-    logger = _create_logger(middleware_settings)
+    logger = logging.getLogger(__name__)
 
     def always_ok(*_args, **_kwargs):
         return True

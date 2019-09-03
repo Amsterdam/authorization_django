@@ -160,7 +160,7 @@ def test_jwks_from_url(requests_mock, tokendata_correct):
     requests_mock.get(jwks_url, text=json.dumps(JWKS))
     reload_settings({
         'JWKS': None,
-        'KEYCLOAK_JWKS_URL': jwks_url
+        'JWKS_URL': jwks_url
     })
     middleware = authorization_django.authorization_middleware(lambda r: object())
     request = create_request(tokendata_correct, "4")
@@ -189,7 +189,7 @@ def test_get_token_subject(middleware, tokendata_correct):
 
 def test_invalid_token_requests(
         middleware, tokendata_missing_scopes,
-        tokendata_expired, tokendata_correct, capfd):
+        tokendata_expired, tokendata_correct):
     reqs = (
         create_request(tokendata_expired, "4"),
         create_request(tokendata_missing_scopes, "5"),
@@ -200,11 +200,9 @@ def test_invalid_token_requests(
         assert response.status_code == 401
         assert 'WWW-Authenticate' in response
         assert 'invalid_token' in response['WWW-Authenticate']
-        _, err = capfd.readouterr()
-        assert 'API authz problem' in err
 
 
-def test_malformed_requests(middleware, tokendata_correct, capfd):
+def test_malformed_requests(middleware, tokendata_correct):
     reqs = (
         create_request(tokendata_correct, "3", prefix='Bad'),
         create_request(tokendata_correct, "2", prefix='Even Worse'),
@@ -214,8 +212,6 @@ def test_malformed_requests(middleware, tokendata_correct, capfd):
         assert response.status_code == 400
         assert 'WWW-Authenticate' in response
         assert 'invalid_request' in response['WWW-Authenticate']
-        _, err = capfd.readouterr()
-        assert 'Invalid authz header' in err
 
 
 def test_no_authorization_header(middleware):
