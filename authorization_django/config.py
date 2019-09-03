@@ -2,7 +2,6 @@
     authorization_middleware.config
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
-import logging
 import types
 
 from django.conf import settings as django_settings
@@ -25,15 +24,6 @@ _available_settings = {
     'MIN_SCOPE': tuple(),
     'ALWAYS_OK': False,
     'FORCED_ANONYMOUS_ROUTES': tuple(),
-    'LOGGER_NAME': __name__,
-    'LOGGER_LEVEL': logging.INFO,
-    'LOGGER_FORMAT': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
-    'LOGGER_FORMAT_DEBUG': (
-        '-' * 80 + '\n' +
-        '%(levelname)s in %(module)s [%(pathname)s:%(lineno)d]:\n' +
-        '%(message)s\n' +
-        '-' * 80
-    )
 }
 
 _settings = {}
