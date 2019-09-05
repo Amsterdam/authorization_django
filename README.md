@@ -32,14 +32,14 @@ Settings
 The following settings are used by the middleware, and can be configured in
 your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 
-| Setting | Description |
-| ------- | ----------- |
-| JWKS | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details. Default: ""|
-| JWKS_URL | A url to a valid JWKS, to validate tokens. Default: ""|
-| MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls. Default: empty tuple|
-| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization. Default: empty tuple|
-| ALWAYS_OK | Disable any authorization checks, use only for local development. Default: False|
-| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens. Default: ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
+| Setting | Description | Default value |
+| ------- | ----------- | ------------- |
+| JWKS | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details | "" |
+| JWKS_URL | A url to a valid JWKS, to validate tokens | "" |
+| MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
+| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization| empty tuple |
+| ALWAYS_OK | Disable any authorization checks, use only for local development| False |
+| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens | ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
 
 Usage
 -----
