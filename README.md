@@ -34,12 +34,12 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 
 | Setting | Description |
 | ------- | ----------- |
-| JWKS | provide a valid JWKSet. See RFC 7517 and 7518 for details (default: "")|
-| JWKS_URL | provide a url to a valid JWKSet (default: "")|
-| MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls (default: empty tuple)|
-| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens (default: ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'])|
-| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization (default: empty tuple)|
-| ALWAYS_OK | Disable any authorization checks, use only for local development (default: False)|
+| JWKS | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details. Default: ""|
+| JWKS_URL | A url to a valid JWKS, to validate tokens. Default: ""|
+| MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls. Default: empty tuple|
+| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization. Default: empty tuple|
+| ALWAYS_OK | Disable any authorization checks, use only for local development. Default: False|
+| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens. Default: ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
 
 Usage
 -----
