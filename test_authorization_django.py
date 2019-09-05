@@ -63,7 +63,6 @@ ALG_LOOKUP = {
 
 TESTSETTINGS = {
     'JWKS': json.dumps(JWKS),
-    'LOGGER_NAME': 'authztest'
 }
 
 
