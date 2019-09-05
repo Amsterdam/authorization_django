@@ -7,6 +7,7 @@ import json
 
 from django import http
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
+from jwcrypto.jws import InvalidJWSSignature
 
 from .config import get_settings
 from .jwks import get_keyset
@@ -132,6 +133,9 @@ def authorization_middleware(get_response):
             raise _AuthorizationHeaderError(invalid_token())
         except JWTMissingKey as e:
             logger.warning('API authz problem: unknown key. {}'.format(e))
+            raise _AuthorizationHeaderError(invalid_token())
+        except InvalidJWSSignature as e:
+            logger.warning('API authz problem: invalid signature. {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
         except ValueError as e:
             logger.warning(
