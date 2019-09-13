@@ -24,6 +24,7 @@ _available_settings = {
     'MIN_SCOPE': tuple(),
     'ALWAYS_OK': False,
     'FORCED_ANONYMOUS_ROUTES': tuple(),
+    'MIN_INTERVAL_KEYSET_UPDATE': 30
 }
 
 _settings = {}

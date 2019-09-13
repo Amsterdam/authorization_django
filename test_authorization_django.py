@@ -6,16 +6,14 @@ import json
 import time
 import types
 from base64 import urlsafe_b64encode
-
 import pytest
 
 from jwcrypto.jwt import JWT
 from django import conf
-import authorization_django.config
-import authorization_django
-from authorization_django import jwks
 
-JWKS = {
+from authorization_django import authorization_middleware, config, jwks
+
+JWKS1 = {
     "keys": [
         {
             "kty": "oct", "key_ops": ["sign", "verify"], "kid": "1", "alg": "HS256",
@@ -42,6 +40,11 @@ JWKS = {
             "y": "eovmN9ocANS8IJxDAGSuC1FehTq5ZFLJU7XSPg36zHpv4H2byKGEcCBiwT4sFJsy",
             "d": "xKPj5IXjiHpQpLOgyMGo6lg_DUp738SuXkiugCFMxbGNKTyTprYPfJz42wTOXbtd"
         },
+    ]
+}
+
+JWKS2 = {
+    "keys": [
         {
             "kty": "EC", "key_ops": ["sign", "verify"], "kid": "6",
             "crv": "P-521",
@@ -62,7 +65,7 @@ ALG_LOOKUP = {
 }
 
 TESTSETTINGS = {
-    'JWKS': json.dumps(JWKS),
+    'JWKS': json.dumps(JWKS1),
 }
 
 
@@ -71,8 +74,8 @@ conf.settings.configure(DEBUG=True)
 
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
-    authorization_django.config.init_settings()
-    authorization_django.jwks.init_keyset()
+    config.init_settings()
+    jwks.init_keyset()
 
 
 def create_token(tokendata, kid, alg):
@@ -135,20 +138,20 @@ def tokendata_correct():
 @pytest.fixture
 def middleware():
     reload_settings(TESTSETTINGS)
-    return authorization_django.authorization_middleware(lambda r: object())
+    return authorization_middleware(lambda r: object())
 
 
 def test_missing_conf():
-    with pytest.raises(authorization_django.config.AuthzConfigurationError):
-        authorization_django.authorization_middleware(None)
+    with pytest.raises(config.AuthzConfigurationError):
+        authorization_middleware(None)
 
 
 def test_bad_jwks():
-    with pytest.raises(authorization_django.config.AuthzConfigurationError):
+    with pytest.raises(config.AuthzConfigurationError):
         reload_settings({
             'JWKS': 'iamnotajwks'
         })
-        authorization_django.authorization_middleware(None)
+        authorization_middleware(None)
 
 
 def test_jwks_from_url(requests_mock, tokendata_correct):
@@ -156,19 +159,67 @@ def test_jwks_from_url(requests_mock, tokendata_correct):
     method correctly evaluates that user has the scopes mentioned in the token data
     """
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
-    requests_mock.get(jwks_url, text=json.dumps(JWKS))
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     reload_settings({
         'JWKS': None,
         'JWKS_URL': jwks_url
     })
-    middleware = authorization_django.authorization_middleware(lambda r: object())
+    middleware = authorization_middleware(lambda r: object())
     request = create_request(tokendata_correct, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
 
 
+def test_reload_jwks_from_url(requests_mock, tokendata_correct):
+    """ It is possible that the IdP rotates the keys. In that case the new keyset
+    needs to be fetched from the JWKS url to be able to verify signed tokens.
+    """
+    jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+
+    # Create a request with a token signed with a key from JWKS2
+    requests_mock.get(jwks_url, text=json.dumps(JWKS2))
+    reload_settings({
+        'JWKS': None,
+        'JWKS_URL': jwks_url
+    })
+    assert requests_mock.call_count == 1
+    request = create_request(tokendata_correct, "6")
+    # Instantiate the middleware with JWKS1
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
+    reload_settings({
+        'JWKS': None,
+        'JWKS_URL': jwks_url,
+        'MIN_INTERVAL_KEYSET_UPDATE': 0  # Set update interval to 0 secs for the test
+    })
+    assert requests_mock.call_count == 2
+    middleware = authorization_middleware(lambda r: object())
+    """
+    Process a request with the middleware. The middleware should now:
+    - refetch the keyset from jwks_url
+    - receive and load JWKS1
+    - still not recognize the kid
+    - respond with an invalid_token response
+    """
+    response = middleware(request)
+    assert requests_mock.call_count == 3
+    assert response.status_code == 401
+    assert 'WWW-Authenticate' in response
+    assert 'invalid_token' in response['WWW-Authenticate']
+    """
+    Mock requests so jwks_url returns JWKS2 and do the same request again.
+    The middleware should now:
+    - refetch the keyset from jwks_url again
+    - receive and load JWKS2
+    - successfully verify the signature of the token
+    """
+    requests_mock.get(jwks_url, text=json.dumps(JWKS2))
+    middleware(request)
+    assert requests_mock.call_count == 4
+    assert request.is_authorized_for("scope1", "scope2")
+
+
 def test_hmac_keys_valid(middleware, tokendata_correct):
-    for kid in ("1", "2", "3", "4", "5", "6"):
+    for kid in ("1", "2", "3", "4", "5"):
         request = create_request(tokendata_correct, kid)
         middleware(request)
         assert request.is_authorized_for("scope1", "scope2")
@@ -201,6 +252,26 @@ def test_invalid_token_requests(
         assert 'invalid_token' in response['WWW-Authenticate']
 
 
+def test_unknown_kid(tokendata_correct):
+    """
+    Verify that a token signed with an unknown key results in an "invalid_token" response
+    """
+    # Create a request with a token signed with a key from JWKS2
+    reload_settings({
+        'JWKS': json.dumps(JWKS2),
+    })
+    request = create_request(tokendata_correct, "6")
+    # Instantiate the middleware with JWKS1
+    reload_settings({
+        'JWKS': json.dumps(JWKS1),
+    })
+    middleware = authorization_middleware(lambda r: object())
+    response = middleware(request)
+    assert response.status_code == 401
+    assert 'WWW-Authenticate' in response
+    assert 'invalid_token' in response['WWW-Authenticate']
+
+
 def test_malformed_requests(middleware, tokendata_correct):
     reqs = (
         create_request(tokendata_correct, "3", prefix='Bad'),
@@ -225,7 +296,7 @@ def test_min_scope():
     testsettings = TESTSETTINGS.copy()
     testsettings['MIN_SCOPE'] = ("scope1",)
     reload_settings(testsettings)
-    middleware = authorization_django.authorization_middleware(lambda r: object())
+    middleware = authorization_middleware(lambda r: object())
     empty_request = types.SimpleNamespace(META={}, path='/', method='GET')
     response = middleware(empty_request)
     assert response.status_code == 401
@@ -239,7 +310,7 @@ def test_forced_anonymous_routes():
     )
     reload_settings(testsettings)
     empty_request = types.SimpleNamespace(META={}, path='/status/lala', method='GET')
-    middleware = authorization_django.authorization_middleware(lambda r: object())
+    middleware = authorization_middleware(lambda r: object())
     response = middleware(empty_request)
     with pytest.raises(Exception):
         response.is_authorized_for("scope1")
@@ -249,7 +320,7 @@ def test_options_works_while_min_scope():
     testsettings = TESTSETTINGS.copy()
     testsettings['MIN_SCOPE'] = ("scope",)
     reload_settings(testsettings)
-    middleware = authorization_django.authorization_middleware(lambda r: object())
+    middleware = authorization_middleware(lambda r: object())
     empty_request = types.SimpleNamespace(META={}, path='/', method='OPTIONS')
     response = middleware(empty_request)
     with pytest.raises(Exception):
@@ -259,6 +330,6 @@ def test_options_works_while_min_scope():
 def test_unknown_config_param():
     testsettings = TESTSETTINGS.copy()
     testsettings['lalaland'] = 'oscar'
-    with pytest.raises(authorization_django.config.AuthzConfigurationError):
+    with pytest.raises(config.AuthzConfigurationError):
         reload_settings(testsettings)
-        authorization_django.authorization_middleware(None)
+        authorization_middleware(None)
