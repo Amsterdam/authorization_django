@@ -10,7 +10,7 @@ from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 from jwcrypto.jws import InvalidJWSSignature
 
 from .config import get_settings
-from .jwks import get_keyset
+from .jwks import get_keyset, check_update_keyset
 
 
 class _AuthorizationHeaderError(Exception):
@@ -115,7 +115,16 @@ def authorization_middleware(get_response):
             logger.warning('Invalid authz header: {}'.format(authz_header))
             raise _AuthorizationHeaderError(invalid_request())
 
-        jwt = decode_token(raw_jwt)
+        try:
+            jwt = decode_token(raw_jwt)
+        except JWTMissingKey:
+            check_update_keyset()
+            try:
+                jwt = decode_token(raw_jwt)
+            except JWTMissingKey as e:
+                logger.warning('API authz problem: unknown key. {}'.format(e))
+                raise _AuthorizationHeaderError(invalid_token())
+
         claims = get_claims(jwt)
         sub = claims['sub']
         scopes = claims['scopes']
@@ -130,9 +139,6 @@ def authorization_middleware(get_response):
             logger.info(
                 'API authz problem: token expired {}'.format(raw_jwt)
             )
-            raise _AuthorizationHeaderError(invalid_token())
-        except JWTMissingKey as e:
-            logger.warning('API authz problem: unknown key. {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
         except InvalidJWSSignature as e:
             logger.warning('API authz problem: invalid signature. {}'.format(e))
