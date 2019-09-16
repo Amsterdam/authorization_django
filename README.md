@@ -36,6 +36,7 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | ------- | ----------- | ------------- |
 | JWKS | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details | "" |
 | JWKS_URL | A url to a valid JWKS, to validate tokens | "" |
+| MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update | 30 |
 | MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
 | FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization| empty tuple |
 | ALWAYS_OK | Disable any authorization checks, use only for local development| False |
@@ -74,8 +75,12 @@ make test
 
 Changelog
 ---------
+- v0.3
+  * Use jwcrypto module to verify tokens
+  * Add support to load JWKS from public url
+  * Remove support for custom logger settings
 
-- v0.2.3 (to be released)
+- v0.2.3
 
   * Settings are now grouped in settings.py (see Settings section above)
   * Middleware now creates audit logs

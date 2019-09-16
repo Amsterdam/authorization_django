@@ -30,7 +30,7 @@ class PyTest(TestCommand):
 with open('README.md', encoding='utf-8') as f:
     long_description = f.read()
 
-version = '0.2.24'
+version = '0.3'
 packages = ['authorization_django']
 requires = ['Django>=1.10.3', 'requests>=2.21', 'jwcrypto>=0.6.0']
 requires_test = ['pytest>=3.0.5', 'pytest-cov>=2.4.0', 'requests_mock']
@@ -44,10 +44,10 @@ setup(
     description='Datapunt authorization check for Django',
     url='https://github.com/Amsterdam/authorization_django',
     author='Amsterdam Datapunt',
-    author_email='datapunt.ois@amsterdam.nl',
+    author_email='datapunt@amsterdam.nl',
     license='Mozilla Public License Version 2.0',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'Topic :: System :: Systems Administration :: Authentication/Directory',
@@ -56,6 +56,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     cmdclass={'test': PyTest},
     packages=packages,
