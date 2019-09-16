@@ -75,8 +75,12 @@ make test
 
 Changelog
 ---------
+- v0.3
+  * Use jwcrypto module to verify tokens
+  * Add support to load JWKS from public url
+  * Remove support for custom logger settings
 
-- v0.2.3 (to be released)
+- v0.2.3
 
   * Settings are now grouped in settings.py (see Settings section above)
   * Middleware now creates audit logs
