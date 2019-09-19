@@ -151,7 +151,7 @@ def authorization_middleware(get_response):
 
     def get_claims(jwt):
         claims = json.loads(jwt.claims)
-        if claims.get('scopes'):
+        if 'scopes' in claims:
             # Authz token structure
             return {
                 'sub': claims.get('sub'),

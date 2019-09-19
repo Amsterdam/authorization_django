@@ -136,6 +136,17 @@ def tokendata_correct():
 
 
 @pytest.fixture
+def tokendata_correct_zero_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'scopes': [],
+        'sub': 'test@tester.nl',
+    }
+
+
+@pytest.fixture
 def middleware():
     reload_settings(TESTSETTINGS)
     return authorization_middleware(lambda r: object())
@@ -229,6 +240,13 @@ def test_valid_one_scope_request(middleware, tokendata_correct):
     request = create_request(tokendata_correct, "4")
     middleware(request)
     assert request.is_authorized_for("scope1")
+
+
+def test_valid_zero_scope_request(middleware, tokendata_correct_zero_scopes):
+    request = create_request(tokendata_correct_zero_scopes, "4")
+    middleware(request)
+    assert not request.is_authorized_for("scope1")
+    assert request.get_token_subject == 'test@tester.nl'
 
 
 def test_get_token_subject(middleware, tokendata_correct):
