@@ -75,6 +75,9 @@ make test
 
 Changelog
 ---------
+- v0.3.1
+  * Bugfix for token with empty scopes claim
+  * Lowered version requirement for requests module
 - v0.3
   * Use jwcrypto module to verify tokens
   * Add support to load JWKS from public url
