@@ -66,6 +66,7 @@ ALG_LOOKUP = {
 
 TESTSETTINGS = {
     'JWKS': json.dumps(JWKS1),
+    'ALLOWED_SIGNING_ALGORITHMS': ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'],
 }
 
 
