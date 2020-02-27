@@ -40,7 +40,7 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
 | FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization| empty tuple |
 | ALWAYS_OK | Disable any authorization checks, use only for local development| False |
-| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens | ['HS256', 'HS384', 'HS512', 'ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
+| ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
 
 Usage
 -----
@@ -75,6 +75,8 @@ make test
 
 Changelog
 ---------
+- v1.0.0
+  * By default do not allow symmetric signing algoritms
 - v0.3.1
   * Bugfix for token with empty scopes claim
   * Lowered version requirement for requests module
@@ -82,8 +84,6 @@ Changelog
   * Use jwcrypto module to verify tokens
   * Add support to load JWKS from public url
   * Remove support for custom logger settings
-
 - v0.2.3
-
   * Settings are now grouped in settings.py (see Settings section above)
   * Middleware now creates audit logs
