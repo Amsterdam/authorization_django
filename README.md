@@ -46,17 +46,51 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 Usage
 -----
 
-The middleware will add a callable `request.is_authorized_for(authz_level)`
-that will tell you whether the current request is authorized for the given
+The middleware provides different ways to add authorization to the application:
+
+#### Define a minimal scope that is required for access
+With the MIN_SCOPE setting you can define a tuple of scopes that are required to access the application. An exception is made for the routes defined in FORCED_ANONYMOUS_ROUTES, which is basically a whitelist, and for the OPTIONS method, which is always allowed. It is also allowed to configure a single scope as a string.
+```
+# Require 'employee' scope for access, except for /status route
+'MIN_SCOPE': 'employee'
+'FORCED_ANONYMOUS_ROUTES': '/status'
+```
+or e.g.
+```
+# Require 'employee' and 'hr' scope for access
+'MIN_SCOPE': ('employee', 'hr')
+```
+
+#### Define protected routes
+With the PROTECTED setting you can define routes that require certain scopes for access. A distinction can me made between HTTP methods. An exception is made for the OPTIONS method, which is always allowed.
+```
+# Require 'employee' scope for access to /api/secure route
+'PROTECTED': [
+  ('/api/secure', ['*'], ['employee'])
+]
+```
+```
+# Require 'employee' scope for read access to /private route
+# Require 'admin' scope for write access to /private route
+'PROTECTED': [
+  ('/private', ['GET', 'HEAD'], 'employee')
+  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'])
+]
+```
+**Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a path starts with a route set in FORCED_ANONYMOUS_ROUTES, access will be granted, no matter what is defined in 'PROTECTED' and authorization will not be checked.
+
+#### A method to check for authorization is added to the request object
+It will add a callable `request.is_authorized_for(authz_level)`
+that can tell you whether the current request is authorized for the given
 `authz_level`:
 
 ```
 import authorization_django
 
-if request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE_PLUS):
-  ...  # return super secret things
-elif request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE):
-  ...  # return a little less secret things
+if request.is_authorized_for('level_admin'):
+  ...  # do admin things
+elif request.is_authorized_for('level_employee'):
+  ...  # do employee level things
 else:
   ...  # only the public stuff
 ```
