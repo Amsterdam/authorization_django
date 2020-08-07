@@ -173,6 +173,13 @@ def authorization_middleware(get_response):
         """
         return scope.upper().replace("_", "/")
 
+    def method_protected(method, protected_methods):
+        if method.upper() in protected_methods:
+            return True
+        if '*' in protected_methods and method.upper() is not 'OPTIONS':
+            return True
+        return False
+
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
@@ -212,8 +219,16 @@ def authorization_middleware(get_response):
         authz_func = authorize_function(scopes, token_signature, x_unique_id)
 
         min_scope = middleware_settings['MIN_SCOPE']
-        if len(min_scope) > 0 and not authz_func(min_scope):
+        if len(min_scope) > 0 and not authz_func(*min_scope):
             return insufficient_scope()
+
+        PROTECTED = middleware_settings['PROTECTED']
+        for resource in PROTECTED:
+            (route, protected_methods, required_scopes) = resource
+            if request.path.startswith(route) and \
+                method_protected(request.method, protected_methods):
+                if not authz_func(*required_scopes):
+                    return insufficient_scope()
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject

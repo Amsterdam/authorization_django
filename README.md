@@ -38,7 +38,8 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | JWKS_URL | A url to a valid JWKS, to validate tokens | "" |
 | MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update | 30 |
 | MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
-| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization| empty tuple |
+| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization (whitelist)| empty tuple |
+| PROTECTED | Routes which require scopes for access. Optionally with distinction of methods | empty list |
 | ALWAYS_OK | Disable any authorization checks, use only for local development| False |
 | ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
 
