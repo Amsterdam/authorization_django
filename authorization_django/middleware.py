@@ -173,7 +173,7 @@ def authorization_middleware(get_response):
         """
         return scope.upper().replace("_", "/")
 
-    def method_protected(method, protected_methods):
+    def method_is_protected(method, protected_methods):
         if method.upper() in protected_methods:
             return True
         if '*' in protected_methods and method.upper() is not 'OPTIONS':
@@ -226,9 +226,9 @@ def authorization_middleware(get_response):
         for resource in PROTECTED:
             (route, protected_methods, required_scopes) = resource
             if request.path.startswith(route) and \
-                method_protected(request.method, protected_methods):
-                if not authz_func(*required_scopes):
-                    return insufficient_scope()
+                method_is_protected(request.method, protected_methods) and \
+                not authz_func(*required_scopes):
+                return insufficient_scope()
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject

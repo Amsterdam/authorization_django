@@ -442,7 +442,7 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
     middleware = authorization_middleware(lambda r: ok_response)
 
     # a token with scope1 gives access via all methods
-    # to the one_scope_required path
+    # to the one_scope_required route
     request = create_request(
        tokendata_scope1,
        '4', 'Bearer', '/one_scope_required', 'GET'
@@ -459,7 +459,7 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
     assert request.is_authorized_for('scope1')
     assert response.status_code == 200
 
-    # a token with only scope1 does not give access to two_scopes_required path
+    # a token with only scope1 does not give access to two_scopes_required route
     request = create_request(
         tokendata_scope1,
         '4', 'Bearer', '/two_scopes_required', 'GET'
@@ -468,7 +468,7 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
     assert response.status_code == 401
     assert 'insufficient_scope' in response['WWW-Authenticate']
 
-    # a token with scope1 and scope2 gives access to two_scopes_required path
+    # a token with scope1 and scope2 gives access to two_scopes_required route
     request = create_request(
         tokendata_two_scopes,
         '4', 'Bearer', '/two_scopes_required', 'GET'
