@@ -203,6 +203,7 @@ def authorization_middleware(get_response):
         scopes = []
         token_signature = ''
         subject = None
+        claims = None
 
         x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
         authz_header = request.META.get('HTTP_AUTHORIZATION')
