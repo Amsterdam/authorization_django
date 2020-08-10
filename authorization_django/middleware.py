@@ -149,19 +149,23 @@ def authorization_middleware(get_response):
             raise _AuthorizationHeaderError(invalid_token())
         return jwt
 
+    # the function below has been slightly altered to
+    # return the full content of the decrypted token
     def get_claims(jwt):
         claims = json.loads(jwt.claims)
         if 'scopes' in claims:
             # Authz token structure
             return {
                 'sub': claims.get('sub'),
-                'scopes': claims['scopes']
+                'scopes': claims['scopes'],
+                'claims': claims,
             }
         elif claims.get('realm_access'):
             # Keycloak token structure
             return {
                 'sub': claims.get('sub'),
-                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']}
+                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
+                'claims': claims,
             }
         logger.warning(
             'API authz problem: access token misses scopes claim'
