@@ -129,7 +129,7 @@ def authorization_middleware(get_response):
         sub = claims['sub']
         scopes = claims['scopes']
         token_signature = raw_jwt.split('.')[2]
-        return scopes, token_signature, sub
+        return scopes, token_signature, sub, claims
 
     def decode_token(raw_jwt):
         settings = get_settings()
@@ -209,7 +209,7 @@ def authorization_middleware(get_response):
 
         if authz_header:
             try:
-                scopes, token_signature, subject = token_data(authz_header)
+                scopes, token_signature, subject, claims = token_data(authz_header)
             except _AuthorizationHeaderError as e:
                 return e.response
 
@@ -221,6 +221,7 @@ def authorization_middleware(get_response):
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
+        request.datapunt_jwt = {'claims': claims}
         return get_response(request)
 
     return middleware
