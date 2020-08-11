@@ -443,21 +443,14 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
 
     # a token with scope1 gives access via all methods
     # to the one_scope_required route
-    request = create_request(
-       tokendata_scope1,
-       '4', 'Bearer', '/one_scope_required', 'GET'
-    )
-    response = middleware(request)
-    assert request.is_authorized_for('scope1')
-    assert response.status_code == 200
-
-    request = create_request(
-       tokendata_scope1,
-       '4', 'Bearer', '/one_scope_required', 'POST'
-    )
-    response = middleware(request)
-    assert request.is_authorized_for('scope1')
-    assert response.status_code == 200
+    for method in ('GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'):
+        request = create_request(
+           tokendata_scope1,
+           '4', 'Bearer', '/one_scope_required', method
+        )
+        response = middleware(request)
+        assert request.is_authorized_for('scope1')
+        assert response.status_code == 200
 
     # a token with only scope1 does not give access to two_scopes_required route
     request = create_request(

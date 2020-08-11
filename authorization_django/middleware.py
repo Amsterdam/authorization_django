@@ -176,9 +176,7 @@ def authorization_middleware(get_response):
     def method_is_protected(method, protected_methods):
         if method.upper() in protected_methods:
             return True
-        if '*' in protected_methods and method.upper() is not 'OPTIONS':
-            return True
-        return False
+        return '*' in protected_methods and method.upper() is not 'OPTIONS'
 
     def middleware(request):
         """ Parses the Authorization header, decodes and validates the JWT and
