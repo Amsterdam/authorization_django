@@ -43,8 +43,18 @@ _required_settings_keys = {
 
 
 class AuthzConfigurationError(Exception):
-    """ Error for missing / invalid configuration"""
+    """ Error for missing / invalid configuration """
 
+class ProtectedRouteConflictError(AuthzConfigurationError):
+    """ Error for a conflicting protected route configuration """
+
+class ProtectedRecourceSyntaxError(AuthzConfigurationError):
+    """ Syntax error in configuration of protected resource """
+
+class NoRequiredScopesError(AuthzConfigurationError):
+    """ Error for when route is configured as protected
+    but no required scopes have been set
+    """
 
 def init_settings():
     global _settings
@@ -103,17 +113,23 @@ def load_settings():
 
     for resource in user_settings['PROTECTED']:
         if not type(resource) == tuple or not len(resource) == 3:
-            raise AuthzConfigurationError(
-                'Resource in PROTECTED must me tuple of length 3'
+            raise ProtectedRecourceSyntaxError(
+                'Resource in PROTECTED must be a tuple of length 3'
             )
-        (path, methods, scopes) = resource
-        if not type(path) is str:
+        (route, methods, scopes) = resource
+        if not type(route) is str:
             raise AuthzConfigurationError(
-                'Path in PROTECTED resource must be a string'
+                'Route in PROTECTED resource must be a string'
             )
+        for aroute in user_settings['FORCED_ANONYMOUS_ROUTES']:
+            if route.startswith(aroute):
+                raise ProtectedRouteConflictError(
+                    f'{route} is configured in PROTECTED, but this would be '
+                    f'overruled by {aroute} in FORCED_ANONYMOUS_ROUTES'
+                )
         if not type(methods) is list:
             raise AuthzConfigurationError(
-                'methods in PROTECTED resource must be a list'
+                'Methods in PROTECTED resource must be a list'
             )
         for method in methods:
             if not method in _methods_valid_options:
@@ -123,7 +139,11 @@ def load_settings():
                 )
         if not type(scopes) is list:
             raise AuthzConfigurationError(
-                'scopes in PROTECTED resource must be a list'
+                'Scopes in PROTECTED resource must be a list'
+            )
+        if not len(scopes) > 0:
+            raise NoRequiredScopesError(
+                f'You must require at least one scope for protected route {route}'
             )
 
     return types.MappingProxyType(user_settings)

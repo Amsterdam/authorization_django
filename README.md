@@ -62,7 +62,7 @@ or e.g.
 ```
 
 #### Define protected routes
-With the PROTECTED setting you can define routes that require certain scopes for access. A distinction can me made between HTTP methods. An exception is made for the OPTIONS method, which is always allowed.
+With the PROTECTED setting you can define routes that require certain scopes for access. A distinction can be made between HTTP methods. An exception is made for the OPTIONS method, which is always allowed.
 ```
 # Require 'employee' scope for access to /api/secure route
 'PROTECTED': [
@@ -77,7 +77,7 @@ With the PROTECTED setting you can define routes that require certain scopes for
   ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'])
 ]
 ```
-**Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a path starts with a route set in FORCED_ANONYMOUS_ROUTES, access will be granted, no matter what is defined in 'PROTECTED' and authorization will not be checked.
+**Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a route in PROTECTED starts with a route set in FORCED_ANONYMOUS_ROUTES, this will lead to a ProtectedRouteConflictError
 
 #### A method to check for authorization is added to the request object
 It will add a callable `request.is_authorized_for(authz_level)`
@@ -85,8 +85,6 @@ that can tell you whether the current request is authorized for the given
 `authz_level`:
 
 ```
-import authorization_django
-
 if request.is_authorized_for('level_admin'):
   ...  # do admin things
 elif request.is_authorized_for('level_employee'):

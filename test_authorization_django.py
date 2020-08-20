@@ -510,3 +510,43 @@ def test_unknown_config_param():
     with pytest.raises(config.AuthzConfigurationError):
         reload_settings(testsettings)
         authorization_middleware(None)
+
+
+def test_protected_resource_syntax_error():
+    invalid_entries = [
+        ('foo', ),
+        ('/foo', ),
+        ('/foo', ['*']),
+    ]
+    for entry in invalid_entries:
+        testsettings = TESTSETTINGS.copy()
+        protected = []
+        protected.append(entry)
+        testsettings['PROTECTED'] = protected
+        with pytest.raises(config.ProtectedRecourceSyntaxError):
+            reload_settings(testsettings)
+            authorization_middleware(None)
+
+
+def test_empty_scopes_error():
+    testsettings = TESTSETTINGS.copy()
+    testsettings['PROTECTED'] = [
+        ('/foo/protected', ['*'], [])
+    ]
+    with pytest.raises(config.NoRequiredScopesError):
+        reload_settings(testsettings)
+        authorization_middleware(None)
+
+
+def test_protected_route_overruled_error():
+    """ Configuring a protected route that would be overruled by a
+    route in FORCED_ANONYMOUS_ROUTES should lead to a ProtectedRouteConflict
+    """
+    testsettings = TESTSETTINGS.copy()
+    testsettings['PROTECTED'] = [
+        ('/foo/protected', ['*'], ['scope1'])
+    ]
+    testsettings['FORCED_ANONYMOUS_ROUTES'] = ('/foo',)
+    with pytest.raises(config.ProtectedRouteConflictError):
+        reload_settings(testsettings)
+        authorization_middleware(None)
