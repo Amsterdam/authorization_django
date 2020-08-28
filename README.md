@@ -38,24 +38,57 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | JWKS_URL | A url to a valid JWKS, to validate tokens | "" |
 | MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update | 30 |
 | MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
-| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization| empty tuple |
+| FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization (whitelist)| empty tuple |
+| PROTECTED | Routes which require scopes for access. Optionally with distinction of methods | empty list |
 | ALWAYS_OK | Disable any authorization checks, use only for local development| False |
 | ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512']|
 
 Usage
 -----
 
-The middleware will add a callable `request.is_authorized_for(authz_level)`
-that will tell you whether the current request is authorized for the given
+The middleware provides different ways to add authorization to the application:
+
+#### Define a minimal scope that is required for access
+With the MIN_SCOPE setting you can define a tuple of scopes that are required to access the application. An exception is made for the routes defined in FORCED_ANONYMOUS_ROUTES, which is basically a whitelist, and for the OPTIONS method, which is always allowed. It is also allowed to configure a single scope as a string.
+```
+# Require 'employee' scope for access, except for /status route
+'MIN_SCOPE': 'employee'
+'FORCED_ANONYMOUS_ROUTES': '/status'
+```
+or e.g.
+```
+# Require 'employee' and 'hr' scope for access
+'MIN_SCOPE': ('employee', 'hr')
+```
+
+#### Define protected routes
+With the PROTECTED setting you can define routes that require certain scopes for access. A distinction can be made between HTTP methods. An exception is made for the OPTIONS method, which is always allowed.
+```
+# Require 'employee' scope for access to /api/secure route
+'PROTECTED': [
+  ('/api/secure', ['*'], ['employee'])
+]
+```
+```
+# Require 'employee' scope for read access to /private route
+# Require 'admin' scope for write access to /private route
+'PROTECTED': [
+  ('/private', ['GET', 'HEAD'], 'employee')
+  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'])
+]
+```
+**Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a route in PROTECTED starts with a route set in FORCED_ANONYMOUS_ROUTES, this will lead to a ProtectedRouteConflictError
+
+#### A method to check for authorization is added to the request object
+It will add a callable `request.is_authorized_for(authz_level)`
+that can tell you whether the current request is authorized for the given
 `authz_level`:
 
 ```
-import authorization_django
-
-if request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE_PLUS):
-  ...  # return super secret things
-elif request.is_authorized_for(authorization_django.levels.LEVEL_EMPLOYEE):
-  ...  # return a little less secret things
+if request.is_authorized_for('level_admin'):
+  ...  # do admin things
+elif request.is_authorized_for('level_employee'):
+  ...  # do employee level things
 else:
   ...  # only the public stuff
 ```
