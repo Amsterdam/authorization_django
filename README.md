@@ -108,6 +108,9 @@ make test
 
 Changelog
 ---------
+- v1.1.0
+  * Add option to require authorization for specific routes
+  * Fix MIN_SCOPE as tuple bug
 - v1.0.0
   * By default do not allow symmetric signing algoritms
 - v0.3.1
