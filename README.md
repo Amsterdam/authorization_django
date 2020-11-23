@@ -73,21 +73,21 @@ With the PROTECTED setting you can define routes that require certain scopes for
 # Require 'employee' scope for read access to /private route
 # Require 'admin' scope for write access to /private route
 'PROTECTED': [
-  ('/private', ['GET', 'HEAD'], 'employee')
-  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'])
+  ('/private', ['GET', 'HEAD'], ['employee'])
+  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'], ['admin'])
 ]
 ```
 **Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a route in PROTECTED starts with a route set in FORCED_ANONYMOUS_ROUTES, this will lead to a ProtectedRouteConflictError
 
 #### A method to check for authorization is added to the request object
-It will add a callable `request.is_authorized_for(authz_level)`
+It will add a callable `request.is_authorized_for(scope)`
 that can tell you whether the current request is authorized for the given
-`authz_level`:
+scope:
 
 ```
-if request.is_authorized_for('level_admin'):
+if request.is_authorized_for('admin'):
   ...  # do admin things
-elif request.is_authorized_for('level_employee'):
+elif request.is_authorized_for('employee'):
   ...  # do employee level things
 else:
   ...  # only the public stuff
