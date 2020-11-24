@@ -284,6 +284,12 @@ def test_get_token_subject(middleware, tokendata_two_scopes):
     assert request.get_token_subject == 'test@tester.nl'
 
 
+def test_get_token_scopes(middleware, tokendata_two_scopes):
+    request = create_request(tokendata_two_scopes, "4")
+    middleware(request)
+    assert request.get_token_scopes == ['scope1', 'scope2']
+
+
 def test_invalid_token_requests(
         middleware, tokendata_missing_scopes,
         tokendata_expired, tokendata_two_scopes):

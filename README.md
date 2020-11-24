@@ -109,6 +109,8 @@ make test
 Changelog
 ---------
 - v1.1.0
+  * Expose scopes via get_token_scopes
+  * Fix SyntaxWarning in middleware
   * Add option to require authorization for specific routes
   * Fix MIN_SCOPE as tuple bug
 - v1.0.0
