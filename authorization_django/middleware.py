@@ -128,8 +128,9 @@ def authorization_middleware(get_response):
         claims = get_claims(jwt)
         sub = claims['sub']
         scopes = claims['scopes']
+        claims = claims['claims']
         token_signature = raw_jwt.split('.')[2]
-        return scopes, token_signature, sub
+        return scopes, token_signature, sub, claims
 
     def decode_token(raw_jwt):
         settings = get_settings()
@@ -155,13 +156,15 @@ def authorization_middleware(get_response):
             # Authz token structure
             return {
                 'sub': claims.get('sub'),
-                'scopes': claims['scopes']
+                'scopes': claims['scopes'],
+                'claims': claims
             }
         elif claims.get('realm_access'):
             # Keycloak token structure
             return {
                 'sub': claims.get('sub'),
-                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']}
+                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
+                'claims': claims
             }
         logger.warning(
             'API authz problem: access token misses scopes claim'
@@ -204,13 +207,14 @@ def authorization_middleware(get_response):
         scopes = []
         token_signature = ''
         subject = None
+        claims = None
 
         x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
         authz_header = request.META.get('HTTP_AUTHORIZATION')
 
         if authz_header:
             try:
-                scopes, token_signature, subject = token_data(authz_header)
+                scopes, token_signature, subject, claims = token_data(authz_header)
             except _AuthorizationHeaderError as e:
                 return e.response
 
@@ -231,6 +235,7 @@ def authorization_middleware(get_response):
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
         request.get_token_scopes = scopes
+        request.get_token_claims = claims
         return get_response(request)
 
     return middleware
