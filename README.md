@@ -110,6 +110,8 @@ Changelog
 ---------
 - develop:
   * expose claims via get_token_claims
+  * read scopes from `resource_access` field if `realm_access` and
+    `scopes` fields do not exist
 - v1.1.0
   * Expose scopes via get_token_scopes
   * Fix SyntaxWarning in middleware
