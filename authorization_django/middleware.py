@@ -24,7 +24,7 @@ def authorization_middleware(get_response):
     set an authorization function on the request.
 
     The decision to use a generic middleware rather than an
-    AuthenticationMiddleware is explicitly made, because instances of the
+    AuthenticationMiddleware is explicitly made, because inctances of the
     latter come with a number of assumptions (i.e. that user.is_authorized()
     exists, or that request.user uses the User model).
 
@@ -165,18 +165,6 @@ def authorization_middleware(get_response):
                 'sub': claims.get('sub'),
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
                 'claims': claims
-            }
-        elif claims.get('resource_access'):
-            # resource structure used on Amsterdam production keycloak
-            resources = claims.get('resource_access')
-            scopes = set()
-            for res, specs in resources.items():
-                for role in specs.get('roles', []):
-                    scopes.add(convert_scope(f"{res}/{role}"))
-            return {
-                'sub': claims.get('sub'),
-                'scopes': scopes,
-                'claims': claims,
             }
         logger.warning(
             'API authz problem: access token misses scopes claim'

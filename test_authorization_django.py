@@ -151,21 +151,6 @@ def tokendata_scope2():
 
 
 @pytest.fixture
-def tokendata_with_resource_access():
-    now = int(time.time())
-    return {
-        'iat': now,
-        'exp': now + 30,
-        'scope': 'openid profile email',
-        'sub': 'a34a11b1-111a-1112-b112-111b111b1111',
-        'resource_access': {
-            'account': {'roles': ['view-profile']},
-            'test': {'roles': ['role1', 'role2']},
-        },
-    }
-
-
-@pytest.fixture
 def tokendata_two_scopes():
     now = int(time.time())
     return {
@@ -297,15 +282,6 @@ def test_get_token_subject(middleware, tokendata_two_scopes):
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.get_token_subject == 'test@tester.nl'
-
-
-def test_get_token_scopes_from_resource_access(
-        middleware, tokendata_with_resource_access
-):
-    request = create_request(tokendata_with_resource_access, "4")
-    middleware(request)
-    expected = {'TEST/ROLE1', 'TEST/ROLE2', 'ACCOUNT/VIEW-PROFILE'}
-    assert request.get_token_scopes == expected
 
 
 def test_get_token_scopes(middleware, tokendata_two_scopes):
