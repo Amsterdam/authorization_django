@@ -108,6 +108,8 @@ make test
 
 Changelog
 ---------
+- develop:
+  * expose claims via get_token_claims
 - v1.1.0
   * Expose scopes via get_token_scopes
   * Fix SyntaxWarning in middleware
