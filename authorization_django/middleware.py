@@ -170,7 +170,8 @@ def authorization_middleware(get_response):
             # Microsoft token structure
             return {
                 'sub': claims.get('preferred_username'),
-                'scopes': {convert_scope(r) for r in claims.get('scp').split(',')}
+                'scopes': {convert_scope(r) for r in claims.get('scp').split(',')},
+                'claims': claims
             }
         logger.warning(
             'API authz problem: access token misses scopes claim'
