@@ -166,6 +166,12 @@ def authorization_middleware(get_response):
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
                 'claims': claims
             }
+        elif claims.get('scp') and claims.get('preferred_username'):
+            # Microsoft token structure
+            return {
+                'sub': claims.get('preferred_username'),
+                'scopes': {convert_scope(r) for r in claims.get('scp').split(',')}
+            }
         logger.warning(
             'API authz problem: access token misses scopes claim'
         )
