@@ -171,6 +171,30 @@ def tokendata_zero_scopes():
         'sub': 'test@tester.nl',
     }
 
+
+@pytest.fixture
+def tokendata_azure_ad_two_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'scp': 'scope_1,scope_2',
+        'preferred_username': 'test@tester.nl',
+    }
+
+
+
+@pytest.fixture
+def tokendata_keycloak_two_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'realm_access': {'roles': ['scope_1', 'scope_2']},
+        'sub': 'test@tester.nl',
+    }
+
+
 ok_response = types.SimpleNamespace(
     status_code = 200
 )
@@ -264,6 +288,21 @@ def test_hmac_keys_valid(middleware, tokendata_two_scopes):
         middleware(request)
         assert request.is_authorized_for("scope1", "scope2")
 
+
+def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
+    request = create_request(tokendata_keycloak_two_scopes, "1")
+    middleware(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
+
+def test_azure_ad_token(middleware, tokendata_azure_ad_two_scopes):
+    request = create_request(tokendata_azure_ad_two_scopes, "1")
+    middleware(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 def test_valid_one_scope_request(middleware, tokendata_two_scopes):
     request = create_request(tokendata_two_scopes, "4")

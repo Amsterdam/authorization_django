@@ -108,7 +108,9 @@ make test
 
 Changelog
 ---------
-- develop:
+- v1.3.0
+  * Support Microsoft Azure AD JWT Token structure
+- v1.2.0:
   * expose claims via get_token_claims
 - v1.1.0
   * Expose scopes via get_token_scopes
