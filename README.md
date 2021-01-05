@@ -46,6 +46,11 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 Usage
 -----
 
+#### Scope notation
+Beware of the scope notation! All scopes that are read from the token are converted using [scope.upper().replace("_", "/")](https://github.com/Amsterdam/authorization_django/blob/d702ea2a78b994d3e38ed576d309658f04820fa0/authorization_django/middleware.py#L184). 
+
+All scopes are transformed to uppercase, and underscores `_` are replaced by slashes `/`. So a scope `read_only` in keycloak should be defined as `READ/ONLY` in the settings.
+
 The middleware provides different ways to add authorization to the application:
 
 #### Define a minimal scope that is required for access
