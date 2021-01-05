@@ -51,30 +51,30 @@ The middleware provides different ways to add authorization to the application:
 #### Define a minimal scope that is required for access
 With the MIN_SCOPE setting you can define a tuple of scopes that are required to access the application. An exception is made for the routes defined in FORCED_ANONYMOUS_ROUTES, which is basically a whitelist, and for the OPTIONS method, which is always allowed. It is also allowed to configure a single scope as a string.
 ```
-# Require 'employee' scope for access, except for /status route
-'MIN_SCOPE': 'employee'
+# Require 'EMPLOYEE' scope for access, except for /status route
+'MIN_SCOPE': 'EMPLOYEE'
 'FORCED_ANONYMOUS_ROUTES': '/status'
 ```
 or e.g.
 ```
-# Require 'employee' and 'hr' scope for access
-'MIN_SCOPE': ('employee', 'hr')
+# Require 'EMPLOYEE' and 'HR' scope for access
+'MIN_SCOPE': ('EMPLOYEE', 'HR')
 ```
 
 #### Define protected routes
 With the PROTECTED setting you can define routes that require certain scopes for access. A distinction can be made between HTTP methods. An exception is made for the OPTIONS method, which is always allowed.
 ```
-# Require 'employee' scope for access to /api/secure route
+# Require 'EMPLOYEE' scope for access to /api/secure route
 'PROTECTED': [
-  ('/api/secure', ['*'], ['employee'])
+  ('/api/secure', ['*'], ['EMPLOYEE'])
 ]
 ```
 ```
-# Require 'employee' scope for read access to /private route
-# Require 'admin' scope for write access to /private route
+# Require 'EMPLOYEE' scope for read access to /private route
+# Require 'ADMIN' scope for write access to /private route
 'PROTECTED': [
-  ('/private', ['GET', 'HEAD'], ['employee'])
-  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'], ['admin'])
+  ('/private', ['GET', 'HEAD'], ['EMPLOYEE'])
+  ('/private', ['POST', 'PUT', 'PATCH', 'DELETE'], ['ADMIN'])
 ]
 ```
 **Note:** the FORCED_ANONYMOUS_ROUTES setting takes precedence over the routes defined in PROTECTED, so if a route in PROTECTED starts with a route set in FORCED_ANONYMOUS_ROUTES, this will lead to a ProtectedRouteConflictError
@@ -85,9 +85,9 @@ that can tell you whether the current request is authorized for the given
 scope:
 
 ```
-if request.is_authorized_for('admin'):
+if request.is_authorized_for('ADMIN'):
   ...  # do admin things
-elif request.is_authorized_for('employee'):
+elif request.is_authorized_for('EMPLOYEE'):
   ...  # do employee level things
 else:
   ...  # only the public stuff
