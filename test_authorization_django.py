@@ -226,7 +226,8 @@ def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     reload_settings({
         'JWKS': None,
-        'JWKS_URL': jwks_url
+        'JWKS_URL': jwks_url,
+        'PROTECTED': [('/', ['*'], ['scope1'])]
     })
     middleware = authorization_middleware(lambda r: ok_response)
     request = create_request(tokendata_two_scopes, "4")
@@ -244,7 +245,8 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
     reload_settings({
         'JWKS': None,
-        'JWKS_URL': jwks_url
+        'JWKS_URL': jwks_url,
+        'PROTECTED': [('/', ['*'], ['scope1'])]
     })
     assert requests_mock.call_count == 1
     request = create_request(tokendata_two_scopes, "6")
@@ -253,6 +255,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     reload_settings({
         'JWKS': None,
         'JWKS_URL': jwks_url,
+        'PROTECTED': [('/', ['*'], ['scope1'])],
         'MIN_INTERVAL_KEYSET_UPDATE': 0  # Set update interval to 0 secs for the test
     })
     assert requests_mock.call_count == 2
@@ -303,6 +306,7 @@ def test_azure_ad_token(middleware, tokendata_azure_ad_two_scopes):
 
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
 
 def test_valid_one_scope_request(middleware, tokendata_two_scopes):
     request = create_request(tokendata_two_scopes, "4")
