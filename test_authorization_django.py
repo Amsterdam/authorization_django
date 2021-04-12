@@ -125,8 +125,7 @@ def tokendata_missing_scopes():
 def tokendata_expired():
     now = int(time.time())
     return {
-        'iat': now - 1500,
-        'exp': now - 120
+        'exp': now - 5
     }
 
 
@@ -339,8 +338,10 @@ def test_get_token_claims(middleware, tokendata_two_scopes):
 
 
 def test_invalid_token_requests(
-        middleware, tokendata_missing_scopes, tokendata_two_scopes):
+        middleware, tokendata_missing_scopes,
+        tokendata_expired, tokendata_two_scopes):
     reqs = (
+        create_request(tokendata_expired, "4"),
         create_request(tokendata_missing_scopes, "5"),
         create_request(tokendata_two_scopes)  # unsigned token
     )
