@@ -124,7 +124,8 @@ def tokendata_missing_scopes():
 def tokendata_expired():
     now = int(time.time())
     return {
-        'exp': now - 5
+        'iat': now - 1500,
+        'exp': now - 120
     }
 
 
@@ -335,11 +336,8 @@ def test_get_token_claims(middleware, tokendata_two_scopes):
     assert request.get_token_claims == tokendata_two_scopes
 
 
-def test_invalid_token_requests(
-        middleware, tokendata_missing_scopes,
-        tokendata_expired, tokendata_two_scopes):
+def test_invalid_token_requests(middleware, tokendata_missing_scopes, tokendata_two_scopes):
     reqs = (
-        create_request(tokendata_expired, "4"),
         create_request(tokendata_missing_scopes, "5"),
         create_request(tokendata_two_scopes)  # unsigned token
     )
@@ -348,6 +346,14 @@ def test_invalid_token_requests(
         assert response.status_code == 401
         assert 'WWW-Authenticate' in response
         assert 'invalid_token' in response['WWW-Authenticate']
+
+
+def test_expired_token_request(middleware, tokendata_expired):
+    response = middleware(create_request(tokendata_expired, "4"))
+    assert response.status_code == 401
+    assert 'WWW-Authenticate' in response
+    assert 'expired_token' in response['WWW-Authenticate']
+    assert response.content == b'Unauthorized. Token expired.'
 
 
 def test_unknown_kid(tokendata_two_scopes):
