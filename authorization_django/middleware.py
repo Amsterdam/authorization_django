@@ -166,11 +166,14 @@ def authorization_middleware(get_response):
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
                 'claims': claims
             }
-        elif claims.get('scp') and claims.get('preferred_username'):
-            # Microsoft token structure
+        elif claims.get('groups') and claims.get('unique_name'):
+            # Azure AD token structure
+            scopes = set(
+                convert_scope(group.split('\\')[1]) for group in claims.get('groups')
+            )
             return {
-                'sub': claims.get('preferred_username'),
-                'scopes': {convert_scope(r) for r in claims.get('scp').split(',')},
+                'sub': claims.get('unique_name'),
+                'scopes': scopes,
                 'claims': claims
             }
         logger.warning(

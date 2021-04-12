@@ -108,6 +108,7 @@ def create_request(tokendata, kid=None, prefix='Bearer', path='/', method='GET')
         },
         path=path, method=method)
 
+
 def create_request_no_auth_header(path='/', method='GET'):
     return types.SimpleNamespace(META={}, path=path, method=method)
 
@@ -179,10 +180,9 @@ def tokendata_azure_ad_two_scopes():
     return {
         'iat': now,
         'exp': now + 30,
-        'scp': 'scope_1,scope_2',
-        'preferred_username': 'test@tester.nl',
+        'groups': ['test\\scope_1', 'test\\scope_2'],
+        'unique_name': 'test@tester.nl',
     }
-
 
 
 @pytest.fixture
@@ -197,8 +197,9 @@ def tokendata_keycloak_two_scopes():
 
 
 ok_response = types.SimpleNamespace(
-    status_code = 200
+    status_code=200
 )
+
 
 @pytest.fixture
 def middleware():
@@ -305,6 +306,7 @@ def test_azure_ad_token(middleware, tokendata_azure_ad_two_scopes):
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
+
 def test_valid_one_scope_request(middleware, tokendata_two_scopes):
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
@@ -336,7 +338,8 @@ def test_get_token_claims(middleware, tokendata_two_scopes):
     assert request.get_token_claims == tokendata_two_scopes
 
 
-def test_invalid_token_requests(middleware, tokendata_missing_scopes, tokendata_two_scopes):
+def test_invalid_token_requests(
+        middleware, tokendata_missing_scopes, tokendata_two_scopes):
     reqs = (
         create_request(tokendata_missing_scopes, "5"),
         create_request(tokendata_two_scopes)  # unsigned token
