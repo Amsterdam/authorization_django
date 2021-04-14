@@ -55,7 +55,7 @@ def authorization_middleware(get_response):
             granted_scopes = set(scopes)
             needed_scopes = set(needed_scopes)
             result = needed_scopes.issubset(granted_scopes)
-            if result:
+            if needed_scopes and result:
                 msg = log_msg_scopes.format(needed_scopes, granted_scopes, token_signature)
                 if x_unique_id:
                     msg += ' X-Unique-ID: {}'.format(x_unique_id)
