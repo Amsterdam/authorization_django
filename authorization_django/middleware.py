@@ -168,12 +168,9 @@ def authorization_middleware(get_response):
             }
         elif claims.get('groups') and (claims.get('unique_name') or claims.get('un')):
             # Azure AD token structure
-            scopes = set(
-                convert_scope(group.split('\\')[1]) for group in claims.get('groups')
-            )
             return {
                 'sub': claims.get('unique_name', claims.get('un')),
-                'scopes': scopes,
+                'scopes': {convert_scope(group.split(" ")[0]) for group in claims.get('groups')},
                 'claims': claims
             }
         logger.warning(
