@@ -113,6 +113,9 @@ make test
 
 Changelog
 ---------
+- v1.3.1
+  * Extended support for Microsoft Azure AD JWT Token structure
+  * Improved tests for Expired token logic
 - v1.3.0
   * Support Microsoft Azure AD JWT Token structure
 - v1.2.0:
