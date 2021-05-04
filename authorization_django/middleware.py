@@ -79,7 +79,7 @@ def authorization_middleware(get_response):
         """ Returns an HttpResponse object with a 401
         """
         msg = 'Bearer realm="datapunt", error="expired_token"'
-        response = http.HttpResponse('Unauthorized. Token expired.', status=401)
+        response = http.HttpResponse('Unauthorized', status=401)
         response['WWW-Authenticate'] = msg
         return response
 
@@ -140,7 +140,7 @@ def authorization_middleware(get_response):
             logger.info(
                 'API authz problem: token expired {}'.format(raw_jwt)
             )
-            raise _AuthorizationHeaderError(expired_token())
+            raise _AuthorizationHeaderError(invalid_token())
         except InvalidJWSSignature as e:
             logger.warning('API authz problem: invalid signature. {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
@@ -166,11 +166,11 @@ def authorization_middleware(get_response):
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
                 'claims': claims
             }
-        elif claims.get('scp') and claims.get('preferred_username'):
-            # Microsoft token structure
+        elif claims.get('groups') and (claims.get('unique_name') or claims.get('un')):
+            # Azure AD token structure
             return {
-                'sub': claims.get('preferred_username'),
-                'scopes': {convert_scope(r) for r in claims.get('scp').split(',')},
+                'sub': claims.get('unique_name', claims.get('un')),
+                'scopes': {convert_scope(group.split(" ")[0]) for group in claims.get('groups')},
                 'claims': claims
             }
         logger.warning(
