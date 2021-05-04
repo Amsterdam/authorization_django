@@ -55,7 +55,7 @@ def authorization_middleware(get_response):
             granted_scopes = set(scopes)
             needed_scopes = set(needed_scopes)
             result = needed_scopes.issubset(granted_scopes)
-            if result:
+            if needed_scopes and result:
                 msg = log_msg_scopes.format(needed_scopes, granted_scopes, token_signature)
                 if x_unique_id:
                     msg += ' X-Unique-ID: {}'.format(x_unique_id)
@@ -79,7 +79,7 @@ def authorization_middleware(get_response):
         """ Returns an HttpResponse object with a 401
         """
         msg = 'Bearer realm="datapunt", error="expired_token"'
-        response = http.HttpResponse('Unauthorized', status=401)
+        response = http.HttpResponse('Unauthorized. Token expired.', status=401)
         response['WWW-Authenticate'] = msg
         return response
 
@@ -140,7 +140,7 @@ def authorization_middleware(get_response):
             logger.info(
                 'API authz problem: token expired {}'.format(raw_jwt)
             )
-            raise _AuthorizationHeaderError(invalid_token())
+            raise _AuthorizationHeaderError(expired_token())
         except InvalidJWSSignature as e:
             logger.warning('API authz problem: invalid signature. {}'.format(e))
             raise _AuthorizationHeaderError(invalid_token())
