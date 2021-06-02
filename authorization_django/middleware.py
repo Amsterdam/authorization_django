@@ -105,6 +105,8 @@ def authorization_middleware(get_response):
     def token_data(authz_header):
         """ Get the token data present in the given authorization header.
         """
+        print(f"ENTERRING THING {__name__}")
+        logger.error("TESTSE NEESS")
         try:
             prefix, raw_jwt = authz_header.split()
         except ValueError:
