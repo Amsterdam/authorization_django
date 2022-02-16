@@ -113,6 +113,8 @@ make test
 
 Changelog
 ---------
+- v1.3.2
+  * Stopped logging entire Authorization headers in case of a parse error
 - v1.3.1
   * Extended support for Microsoft Azure AD JWT Token structure
   * Improved tests for Expired token logic
@@ -120,9 +122,9 @@ Changelog
   * Support Microsoft Azure AD JWT Token structure
 - v1.2.0:
   * expose claims via get_token_claims
-- v1.1.0
   * Expose scopes via get_token_scopes
   * Fix SyntaxWarning in middleware
+- v1.1.0
   * Add option to require authorization for specific routes
   * Fix MIN_SCOPE as tuple bug
 - v1.0.0
