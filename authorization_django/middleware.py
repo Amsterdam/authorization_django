@@ -105,16 +105,13 @@ def authorization_middleware(get_response):
     def token_data(authz_header):
         """ Get the token data present in the given authorization header.
         """
-        try:
-            prefix, raw_jwt = authz_header.split()
-        except ValueError:
-            logger.warning('Invalid authz header: {}'.format(authz_header))
+        prefix = authz_header[:len('Bearer ')]
+
+        if prefix.lower() != 'bearer ':
+            logger.warning('Invalid authz header, does not start with "Bearer "')
             raise _AuthorizationHeaderError(invalid_request())
 
-        if prefix.lower() != 'bearer':
-            logger.warning('Invalid authz header: {}'.format(authz_header))
-            raise _AuthorizationHeaderError(invalid_request())
-
+        raw_jwt = authz_header[len("Bearer "):]
         try:
             jwt = decode_token(raw_jwt)
         except JWTMissingKey:
