@@ -32,7 +32,7 @@ with open('README.md', encoding='utf-8') as f:
 
 version = '1.3.2'
 packages = ['authorization_django']
-requires = ['Django>=1.10.3', 'requests>=2.20.1', 'jwcrypto>=0.6.0']
+requires = ['Django>=1.10.3', 'requests>=2.20.1', 'jwcrypto>=1.4.2']
 requires_test = ['pytest>=3.0.5', 'pytest-cov>=2.4.0', 'requests_mock']
 requires_extras = {
     'dev': [] + requires_test,
