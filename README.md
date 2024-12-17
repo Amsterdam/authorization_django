@@ -6,6 +6,10 @@ Datapunt Django Authorization
 
 Django middleware that adds functionality to check authorization, based on JSON Web Tokens.
 
+Unlike many Django OAuth2/ODIC libraries, this middleware does interact with Django User objects.
+It only validates the JSON Web Token, and exposes its scopes in the request object.
+This allows backends to operate based on the token scope.
+
 ---------------------
 
 Install
@@ -113,6 +117,10 @@ make test
 
 Changelog
 ---------
+- v1.3.4
+  * Support Microsoft Entra ID token structure
+- v1.3.3
+  * Bump jwcrypto requirement to 1.4.2
 - v1.3.2
   * Stopped logging entire Authorization headers in case of a parse error
 - v1.3.1
