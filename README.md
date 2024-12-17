@@ -17,7 +17,7 @@ pip install datapunt-authorization-django
 ```
 
 Add `authorization_django.authorization_middleware` to the list of middlewares
-in `settings.py`, and configure either a JWKS as json or a url to a JWKS.
+in `settings.py`, and configure either a JWKS as json or an url to a JWKS.
 
 ```
 MIDDLEWARE = (
