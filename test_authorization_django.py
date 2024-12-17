@@ -125,7 +125,9 @@ def tokendata_missing_scopes():
 def tokendata_expired():
     now = int(time.time())
     return {
-        'exp': now - 5
+        'iat': now,
+        'exp': now - 5,
+        'scopes': ['scope1'],
     }
 
 
