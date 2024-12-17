@@ -163,17 +163,25 @@ def authorization_middleware(get_response):
                 'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
                 'claims': claims
             }
+        elif claims.get('roles') and (claims.get('unique_name') or claims.get('upn')):
+            # Microsoft Entra ID token structure
+            return {
+                'sub': claims.get('unique_name', claims.get('upn')),
+                'scopes': set(claims['roles']),
+                'claims': claims
+            }
         elif claims.get('groups') and (claims.get('unique_name') or claims.get('un')):
-            # Azure AD token structure
+            # Microsoft Entra ID token structure (previously called Azure AD), using group claims
             return {
                 'sub': claims.get('unique_name', claims.get('un')),
                 'scopes': {convert_scope(group.split(" ")[0]) for group in claims.get('groups')},
                 'claims': claims
             }
-        logger.warning(
-            'API authz problem: access token misses scopes claim'
-        )
-        raise _AuthorizationHeaderError(invalid_token())
+        else:
+            logger.warning(
+                'API authz problem: access token misses scopes claim'
+            )
+            raise _AuthorizationHeaderError(invalid_token())
 
     def convert_scope(scope):
         """ Convert Keycloak role to authz style scope
