@@ -185,6 +185,17 @@ def tokendata_azure_ad_two_scopes():
 
 
 @pytest.fixture
+def tokendata_entra_id_two_scopes():
+    now = int(time.time())
+    return {
+        'iat': now,
+        'exp': now + 30,
+        'roles': ['test-scope-1', 'test-scope-2'],
+        'unique_name': 'test@tester.nl',
+    }
+
+
+@pytest.fixture
 def tokendata_keycloak_two_scopes():
     now = int(time.time())
     return {
@@ -296,6 +307,14 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
 
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
+
+def test_entra_id_token(middleware, tokendata_entra_id_two_scopes):
+    request = create_request(tokendata_entra_id_two_scopes, "1")
+    middleware(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"test-scope-1", "test-scope-2"}
 
 
 def test_azure_ad_token(middleware, tokendata_azure_ad_two_scopes):
