@@ -48,6 +48,10 @@ def init_keyset():
     if settings.get('JWKS_URL'):
         load_jwks_from_url(settings['JWKS_URL'])
 
+    if settings.get('JWKS_URLS'):
+        for url in settings['JWKS_URLS']:
+            load_jwks_from_url(url)
+
     if len(_keyset['keys']) == 0:
         raise AuthzConfigurationError('No keys loaded!')
 

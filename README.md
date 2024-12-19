@@ -40,6 +40,7 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | ------- | ----------- | ------------- |
 | JWKS | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details | "" |
 | JWKS_URL | A url to a valid JWKS, to validate tokens | "" |
+| JWKS_URLS | A list of URLs to a valid JWKS, to validate tokens | "" |
 | MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update | 30 |
 | MIN_SCOPE | Minimum needed scope(s) to view non-whitelisted urls | empty tuple |
 | FORCED_ANONYMOUS_ROUTES | Routes for which not to check for authorization (whitelist)| empty tuple |
@@ -119,6 +120,7 @@ Changelog
 ---------
 - v1.3.4
   * Support Microsoft Entra ID token structure
+  * Added `JWKS_URLS` setting to authenticate against multiple backends
 - v1.3.3
   * Bump jwcrypto requirement to 1.4.2
 - v1.3.2

@@ -16,6 +16,7 @@ _settings_key = 'DATAPUNT_AUTHZ'
 _available_settings = {
     'JWKS': "",
     'JWKS_URL': "",
+    'JWKS_URLS': [],
     'ALLOWED_SIGNING_ALGORITHMS': [
         'ES256', 'ES384', 'ES512',
         'RS256', 'RS384', 'RS512'
