@@ -1,8 +1,5 @@
 import time
 import logging
-import base64
-import collections
-import json
 
 import requests
 from jwcrypto.jwk import JWKSet
