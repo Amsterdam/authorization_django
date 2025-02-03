@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 import logging
 
@@ -13,7 +15,7 @@ _keyset_last_update = 0
 logger = logging.getLogger(__name__)
 
 
-def get_keyset():
+def get_keyset() -> JWKSet:
     global _keyset
     if not _keyset:
         init_keyset()
@@ -43,39 +45,37 @@ def init_keyset():
     settings = get_settings()
 
     if settings.get('JWKS'):
-        load_jwks(settings['JWKS'])
+        _load_jwks(_keyset, settings['JWKS'])
 
     if settings.get('JWKS_URL'):
-        load_jwks_from_url(settings['JWKS_URL'])
+        _load_jwks_from_url(_keyset, settings['JWKS_URL'])
 
     if settings.get('JWKS_URLS'):
         for url in settings['JWKS_URLS']:
-            load_jwks_from_url(url)
+            _load_jwks_from_url(_keyset, url)
 
     if len(_keyset['keys']) == 0:
         raise AuthzConfigurationError('No keys loaded!')
 
 
-def load_jwks(jwks):
-    global _keyset
+def _load_jwks(keyset: JWKSet, jwks):
     try:
-        _keyset.import_keyset(jwks)
+        keyset.import_keyset(jwks)
     except JWException as e:
-        raise AuthzConfigurationError("Failed to import keyset from settings") from e
+        raise AuthzConfigurationError('Failed to import keyset from settings') from e
     logger.info('Loaded JWKS from JWKS setting.')
 
 
-def load_jwks_from_url(jwks_url):
-    global _keyset
+def _load_jwks_from_url(keyset: JWKSet, jwks_url):
     try:
         response = requests.get(jwks_url)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise AuthzConfigurationError(
-            "Failed to get Keycloak keyset from url: {}, error: {}".format(jwks_url, e)
+            'Failed to get Keycloak keyset from url: {}, error: {}'.format(jwks_url, e)
         )
     try:
-        _keyset.import_keyset(response.text)
+        keyset.import_keyset(response.text)
     except JWException as e:
-        raise AuthzConfigurationError("Failed to import Keycloak keyset") from e
+        raise AuthzConfigurationError('Failed to import Keycloak keyset') from e
     logger.info('Loaded JWKS from JWKS_URL setting {}'.format(jwks_url))
