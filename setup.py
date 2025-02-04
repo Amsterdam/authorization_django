@@ -8,7 +8,7 @@ from setuptools import setup
 with open('README.md', encoding='utf-8') as f:
     long_description = f.read()
 
-version = '1.3.4'
+version = '1.4.0'
 packages = ['authorization_django']
 requires = ['Django>=1.10.3', 'requests>=2.20.1', 'jwcrypto>=1.4.2']
 requires_test = ['pytest>=3.0.5', 'pytest-cov>=2.4.0', 'requests_mock']
@@ -20,6 +20,7 @@ setup(
     name='datapunt-authorization-django',
     version=version,
     description='Datapunt authorization check for Django',
+    long_description=long_description,
     url='https://github.com/Amsterdam/authorization_django',
     author='Amsterdam Datapunt',
     author_email='datapunt@amsterdam.nl',

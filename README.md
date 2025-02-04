@@ -118,7 +118,7 @@ make test
 
 Changelog
 ---------
-- v1.3.4
+- v1.4.0
   * Support Microsoft Entra ID token structure
   * Added `JWKS_URLS` setting to authenticate against multiple backends
 - v1.3.3

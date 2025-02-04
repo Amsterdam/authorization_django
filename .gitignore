@@ -18,4 +18,5 @@
 # Setuptools
 *.egg-info
 .eggs
-dist
+dist/
+build/
