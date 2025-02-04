@@ -21,6 +21,7 @@ setup(
     version=version,
     description='Datapunt authorization check for Django',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/Amsterdam/authorization_django',
     author='Amsterdam Datapunt',
     author_email='datapunt@amsterdam.nl',
