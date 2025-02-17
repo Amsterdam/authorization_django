@@ -6,7 +6,7 @@ Datapunt Django Authorization
 
 Django middleware that adds functionality to check authorization, based on JSON Web Tokens.
 
-Unlike many Django OAuth2/ODIC libraries, this middleware does **NOT** interact with Django User objects.
+Unlike many Django OAuth2/OIDC libraries, this middleware does **NOT** interact with Django User objects.
 It only validates the JSON Web Token, and exposes its scopes in the request object.
 This allows backends to operate based on the token scope.
 
