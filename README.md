@@ -52,7 +52,7 @@ Usage
 -----
 
 #### Scope notation
-Beware of the scope notation! All scopes that are read from the token are converted using [scope.upper().replace("_", "/")](https://github.com/Amsterdam/authorization_django/blob/d702ea2a78b994d3e38ed576d309658f04820fa0/authorization_django/middleware.py#L184). 
+Beware of the scope notation! All scopes that are read from the token are converted using [scope.upper().replace("_", "/")](https://github.com/Amsterdam/authorization_django/blob/d702ea2a78b994d3e38ed576d309658f04820fa0/authorization_django/middleware.py#L184).
 
 All scopes are transformed to uppercase, and underscores `_` are replaced by slashes `/`. So a scope `read_only` in keycloak should be defined as `READ/ONLY` in the settings.
 
@@ -103,12 +103,26 @@ else:
   ...  # only the public stuff
 ```
 
+### Extra Authentication class for use with Django Rest Framework / Spectacular
+
+This has been added in here so they can be reused on our other repositories
+(DSO-API, BRP Kennisgevingen). When you have a DJRF view somewhere, you can
+add the JWTAuthentication as authentication class:
+
+```python
+from authorization_django.extensions.drf import JWTAuthentication
+
+class MySpecialView(APIView):
+  authentication_classes = [JWTAuthentication]
+  ...
+```
+
 Contribute
 ----------
 
 Activate your virtualenv, install the egg in `editable` mode, and start coding:
 ```
-$ pip install -e .
+$ pip install -e .[extended]
 ```
 
 Testing:
@@ -118,6 +132,8 @@ make test
 
 Changelog
 ---------
+- v1.5.0
+  * Add authentication class for django rest framework and drf-spectacular
 - v1.4.0
   * Support Microsoft Entra ID token structure
   * Added `JWKS_URLS` setting to authenticate against multiple backends
