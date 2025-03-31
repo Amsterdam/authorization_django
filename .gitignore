@@ -5,12 +5,16 @@
 # IntelliJ
 .idea
 
+# VSCode
+.vscode
+
 # Python bytecode and cache
 *.pyc
 **/__pycache__
 
 # virtualenv
 .venv
+.python-version
 
 # Pytest coverage
 .coverage
