@@ -8,8 +8,8 @@ from setuptools import setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-version = "1.5.0"
-packages = ["authorization_django"]
+version = "1.5.0.post1"
+packages = ["authorization_django", "authorization_django.extensions"]
 requires = ["Django>=1.10.3", "requests>=2.20.1", "jwcrypto>=1.4.2"]
 requires_test = ["pytest>=3.0.5", "pytest-cov>=2.4.0", "requests_mock"]
 requires_extras = {
