@@ -3,15 +3,15 @@ authorization_django.middleware
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
-import logging
 import json
+import logging
 
 from django import http
-from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 from jwcrypto.jws import InvalidJWSSignature
+from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
 from .config import get_settings
-from .jwks import get_keyset, check_update_keyset
+from .jwks import check_update_keyset, get_keyset
 
 
 class _AuthorizationHeaderError(Exception):
@@ -50,17 +50,18 @@ def authorization_middleware(get_response):
 
         :return func:
         """
-        log_msg_scopes = "Granted access (needed: {}, granted: {}, token signature: {})"
 
         def is_authorized(*needed_scopes):
             granted_scopes = set(scopes)
             needed_scopes = set(needed_scopes)
             result = needed_scopes.issubset(granted_scopes)
             if needed_scopes and result:
-                msg = log_msg_scopes.format(needed_scopes, granted_scopes, token_signature)
+                msg = "Granted access (needed: %s, granted: %s, token signature: %s)"
+                args = [needed_scopes, granted_scopes, token_signature]
                 if x_unique_id:
-                    msg += f" X-Unique-ID: {x_unique_id}"
-                logger.info(msg)
+                    msg += f" X-Unique-ID: %s"
+                    args.append(x_unique_id)
+                logger.info(msg, *args)
             return result
 
         return is_authorized
@@ -117,8 +118,8 @@ def authorization_middleware(get_response):
             try:
                 jwt = decode_token(raw_jwt)
             except JWTMissingKey as e:
-                logger.warning(f"API authz problem: unknown key. {e}")
-                raise _AuthorizationHeaderError(invalid_token())
+                logger.warning("API authz problem: unknown key. %s", e)
+                raise _AuthorizationHeaderError(invalid_token()) from e
 
         claims = get_claims(jwt)
         sub = claims["sub"]
@@ -135,15 +136,15 @@ def authorization_middleware(get_response):
                 key=get_keyset(),
                 algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
             )
-        except JWTExpired:
-            logger.info(f"API authz problem: token expired {raw_jwt}")
-            raise _AuthorizationHeaderError(invalid_token())
+        except JWTExpired as e:
+            logger.info("API authz problem: token expired %s", raw_jwt)
+            raise _AuthorizationHeaderError(invalid_token()) from e
         except InvalidJWSSignature as e:
-            logger.warning(f"API authz problem: invalid signature. {e}")
-            raise _AuthorizationHeaderError(invalid_token())
+            logger.warning("API authz problem: invalid signature. %s", e)
+            raise _AuthorizationHeaderError(invalid_token()) from e
         except ValueError as e:
-            logger.warning(f"API authz problem: {e}")
-            raise _AuthorizationHeaderError(invalid_token())
+            logger.warning("API authz problem: %s", e)
+            raise _AuthorizationHeaderError(invalid_token()) from e
         return jwt
 
     def get_claims(jwt):
@@ -198,7 +199,7 @@ def authorization_middleware(get_response):
         if middleware_settings["ALWAYS_OK"]:
             logger.warning("API authz DISABLED")
             request.is_authorized_for = always_ok
-            request.get_token_subject = "ALWAYS_OK"
+            request.get_token_subject = "ALWAYS_OK"  # noqa: S105
             return get_response(request)
 
         # Path is in forced anonymous routes or method is Options

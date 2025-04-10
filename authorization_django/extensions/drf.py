@@ -2,7 +2,7 @@ from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.request import Request
 
-import authorization_django.extensions.scheme  # noqa
+import authorization_django.extensions.scheme  # noqa: F401
 
 
 class JWTAuthentication(BaseAuthentication):

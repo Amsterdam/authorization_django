@@ -26,10 +26,10 @@ _available_settings = {
         "RS384",
         "RS512",
     ],
-    "MIN_SCOPE": tuple(),
+    "MIN_SCOPE": (),
     "PROTECTED": [],
     "ALWAYS_OK": False,
-    "FORCED_ANONYMOUS_ROUTES": tuple(),
+    "FORCED_ANONYMOUS_ROUTES": (),
     "MIN_INTERVAL_KEYSET_UPDATE": 30,
 }
 
@@ -102,20 +102,20 @@ def load_settings():
     if not user_settings.get("JWKS") and not user_settings.get("JWKS_URL"):
         raise AuthzConfigurationError("Either JWKS or JWKS_URL must be set, or both")
 
-    if type(user_settings["MIN_SCOPE"]) == str:
+    if isinstance(user_settings["MIN_SCOPE"], str):
         user_settings["MIN_SCOPE"] = (user_settings["MIN_SCOPE"],)
 
-    if not type(user_settings["FORCED_ANONYMOUS_ROUTES"]) in {list, tuple, set}:
+    if not isinstance(user_settings["FORCED_ANONYMOUS_ROUTES"], (list, tuple, set)):
         raise AuthzConfigurationError("FORCED_ANONYMOUS_ROUTES must be a list, tuple or set")
 
-    if not type(user_settings["PROTECTED"]) in {list, tuple, set}:
+    if not isinstance(user_settings["PROTECTED"], (list, tuple, set)):
         raise AuthzConfigurationError("PROTECTED must be a list, tuple or set")
 
     for resource in user_settings["PROTECTED"]:
-        if not type(resource) == tuple or not len(resource) == 3:
+        if not isinstance(resource, tuple) or not len(resource) == 3:
             raise ProtectedRecourceSyntaxError("Resource in PROTECTED must be a tuple of length 3")
         (route, methods, scopes) = resource
-        if not type(route) is str:
+        if not isinstance(route, str):
             raise AuthzConfigurationError("Route in PROTECTED resource must be a string")
         for aroute in user_settings["FORCED_ANONYMOUS_ROUTES"]:
             if route.startswith(aroute):
@@ -123,15 +123,15 @@ def load_settings():
                     f"{route} is configured in PROTECTED, but this would be "
                     f"overruled by {aroute} in FORCED_ANONYMOUS_ROUTES"
                 )
-        if not type(methods) is list:
+        if not isinstance(methods, list):
             raise AuthzConfigurationError("Methods in PROTECTED resource must be a list")
         for method in methods:
-            if not method in _methods_valid_options:
+            if method not in _methods_valid_options:
                 str_methods = ", ".join(_methods_valid_options)
                 raise AuthzConfigurationError(
                     f"Invalid value for methods: {method}. Must be one of {str_methods}."
                 )
-        if not type(scopes) is list:
+        if not isinstance(scopes, list):
             raise AuthzConfigurationError("Scopes in PROTECTED resource must be a list")
         if not len(scopes) > 0:
             raise NoRequiredScopesError(

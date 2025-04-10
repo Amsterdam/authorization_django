@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import time
 import logging
+import time
 
 import requests
-from jwcrypto.jwk import JWKSet
 from jwcrypto.common import JWException
+from jwcrypto.jwk import JWKSet
 
-from .config import get_settings, AuthzConfigurationError
+from .config import AuthzConfigurationError, get_settings
 
 _keyset = None
 _keyset_last_update = 0
@@ -68,14 +68,14 @@ def _load_jwks(keyset: JWKSet, jwks):
 
 def _load_jwks_from_url(keyset: JWKSet, jwks_url):
     try:
-        response = requests.get(jwks_url)
+        response = requests.get(jwks_url, timeout=60)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise AuthzConfigurationError(
             f"Failed to get Keycloak keyset from url: {jwks_url}, error: {e}"
-        )
+        ) from e
     try:
         keyset.import_keyset(response.text)
     except JWException as e:
         raise AuthzConfigurationError("Failed to import Keycloak keyset") from e
-    logger.info(f"Loaded JWKS from JWKS_URL setting {jwks_url}")
+    logger.info("Loaded JWKS from JWKS_URL setting %s", jwks_url)
