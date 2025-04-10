@@ -5,12 +5,13 @@ test_authorization_django
 
 import json
 import time
-import types
 from base64 import urlsafe_b64encode
-import pytest
 
-from jwcrypto.jwt import JWT
+import pytest
 from django import conf
+from django.http import HttpResponse
+from django.test import RequestFactory
+from jwcrypto.jwt import JWT
 
 from authorization_django import authorization_middleware, config, jwks
 
@@ -129,13 +130,13 @@ def create_request(tokendata, kid=None, prefix="Bearer", path="/", method="GET")
     else:
         token = create_token(tokendata, kid, ALG_LOOKUP[kid]).serialize()
 
-    return types.SimpleNamespace(
-        META={"HTTP_AUTHORIZATION": f"{prefix} {token}"}, path=path, method=method
+    return RequestFactory().generic(
+        method, path=path, headers={"authorization": f"{prefix} {token}"}
     )
 
 
 def create_request_no_auth_header(path="/", method="GET"):
-    return types.SimpleNamespace(META={}, path=path, method=method)
+    return RequestFactory().generic(method, path)
 
 
 @pytest.fixture
@@ -231,13 +232,14 @@ def tokendata_keycloak_two_scopes():
     }
 
 
-ok_response = types.SimpleNamespace(status_code=200)
+def _ok_view(request):
+    return HttpResponse(status=200)
 
 
 @pytest.fixture
 def middleware():
     reload_settings(TESTSETTINGS)
-    return authorization_middleware(lambda r: ok_response)
+    return authorization_middleware(_ok_view)
 
 
 def test_missing_conf():
@@ -258,7 +260,7 @@ def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
@@ -285,7 +287,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
         }
     )
     assert requests_mock.call_count == 2
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(lambda r: HttpResponse(status=200))
     """
     Process a request with the middleware. The middleware should now:
     - refetch the keyset from jwks_url
@@ -413,7 +415,7 @@ def test_unknown_kid(tokendata_two_scopes):
             "JWKS": json.dumps(JWKS1),
         }
     )
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert response.status_code == 401
     assert "WWW-Authenticate" in response
@@ -445,7 +447,7 @@ def test_min_scope_sufficient(tokendata_scope1):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope1",)
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
     assert response.status_code == 200
@@ -456,7 +458,7 @@ def test_min_scope_insufficient():
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope1",)
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
     response = middleware(request)
     assert response.status_code == 401
@@ -468,7 +470,7 @@ def test_min_scope_as_string_sufficient(tokendata_scope1):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = "scope1"
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
     assert response.status_code == 200
@@ -479,7 +481,7 @@ def test_min_scope_as_string_insufficient(tokendata_scope1):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = "scope1"
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
     response = middleware(request)
     assert response.status_code == 401
@@ -490,7 +492,7 @@ def test_min_scope_multiple_sufficient(tokendata_two_scopes):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope1", "scope2")
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     response = middleware(request)
     assert response.status_code == 200
@@ -501,36 +503,36 @@ def test_min_scope_multiple_insufficient(tokendata_scope1):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope1", "scope2")
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
     assert response.status_code == 401
     assert "insufficient_scope" in response["WWW-Authenticate"]
 
 
-def test_forced_anonymous_routes():
+def test_forced_anonymous_routes(rf):
     testsettings = TESTSETTINGS.copy()
     testsettings["FORCED_ANONYMOUS_ROUTES"] = ("/status",)
     testsettings["MIN_SCOPE"] = ("scope1",)
     reload_settings(testsettings)
-    empty_request = types.SimpleNamespace(META={}, path="/status/lala", method="GET")
-    middleware = authorization_middleware(lambda r: ok_response)
+    empty_request = rf.get("/status/lala")
+    middleware = authorization_middleware(_ok_view)
     response = middleware(empty_request)
     assert response.status_code == 200
-    with pytest.raises(Exception):
-        response.is_authorized_for("scope1")
+    with pytest.raises(RuntimeError):
+        empty_request.is_authorized_for("scope1")
 
 
-def test_options_works_while_min_scope():
+def test_options_works_while_min_scope(rf):
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope",)
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
-    empty_request = types.SimpleNamespace(META={}, path="/", method="OPTIONS")
+    middleware = authorization_middleware(_ok_view)
+    empty_request = rf.options(path="/")
     response = middleware(empty_request)
     assert response.status_code == 200
-    with pytest.raises(Exception):
-        response.is_authorized_for("scope1")
+    with pytest.raises(RuntimeError):
+        empty_request.is_authorized_for("scope1")
 
 
 def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes):
@@ -540,7 +542,7 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
         ("/two_scopes_required", ["*"], ["scope1", "scope2"]),
     ]
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
 
     # a token with scope1 gives access via all methods
     # to the one_scope_required route
@@ -562,7 +564,7 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
     assert response.status_code == 200
 
     # OPTIONS method should be allowed without auth header, even with methods: *
-    request = create_request_no_auth_header("one_scope_required", "OPTIONS")
+    request = create_request_no_auth_header("/one_scope_required", "OPTIONS")
     response = middleware(request)
     assert response.status_code == 200
 
@@ -574,7 +576,7 @@ def test_protected_resource_read_write_distinction(tokendata_scope1, tokendata_s
         ("/read_write_distinction", ["PATCH", "PUT", "POST", "DELETE"], ["scope2"]),
     ]
     reload_settings(testsettings)
-    middleware = authorization_middleware(lambda r: ok_response)
+    middleware = authorization_middleware(_ok_view)
 
     request = create_request(tokendata_scope1, "4", "Bearer", "/read_write_distinction", "GET")
     response = middleware(request)
