@@ -5,9 +5,10 @@ authorization_django.middleware
 
 import json
 import logging
+from time import time
 
 from django import http
-from jwcrypto.jws import InvalidJWSSignature
+from jwcrypto.common import JWException
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
 from .config import get_settings
@@ -138,19 +139,27 @@ class AuthorizationMiddleware:
 
     def _decode_token(self, raw_jwt):
         settings = get_settings()
+        keyset = get_keyset()  # does lazy loading here, inclusing fetching URLs
+
+        check_claims = settings["CHECK_CLAIMS"] or None
+        if check_claims:
+            # Specifying check_claims disables the automatic check on expiry,
+            # so that needs to be explicitly added now.
+            check_claims = {**check_claims, "exp": int(time())}
         try:
             jwt = JWT(
                 jwt=raw_jwt,
-                key=get_keyset(),
+                key=keyset,
                 algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
+                check_claims=check_claims,
             )
         except JWTExpired as e:
             logger.info("API authz problem: token expired %s", raw_jwt)
             raise _AuthorizationHeaderError(self.expired_token_response()) from e
-        except InvalidJWSSignature as e:
-            logger.warning("API authz problem: invalid signature. %s", e)
-            raise _AuthorizationHeaderError(self.invalid_token_response()) from e
-        except ValueError as e:
+        except JWTMissingKey:
+            raise  # for parse_token() to handle
+        except (JWException, ValueError) as e:
+            # invalid signature, invalid claim, missing claim
             logger.warning("API authz problem: %s", e)
             raise _AuthorizationHeaderError(self.invalid_token_response()) from e
         return jwt

@@ -229,6 +229,30 @@ def tokendata_keycloak_two_scopes():
     }
 
 
+@pytest.fixture
+def tokendata_issuer():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "iss": "FOOBAR",
+        "scopes": [],
+        "sub": "test@tester.nl",
+    }
+
+
+@pytest.fixture
+def tokendata_issuer_expired():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now - 100,  # 60 second leeway allowed
+        "iss": "FOOBAR",
+        "scopes": [],
+        "sub": "test@tester.nl",
+    }
+
+
 def _ok_view(request):
     return HttpResponse(status=200)
 
@@ -283,7 +307,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
             "MIN_INTERVAL_KEYSET_UPDATE": 0,  # Set update interval to 0 secs for the test
         }
     )
-    assert requests_mock.call_count == 2
+    assert requests_mock.call_count == 2, requests_mock.request_history
     middleware = authorization_middleware(lambda r: HttpResponse(status=200))
     """
     Process a request with the middleware. The middleware should now:
@@ -435,6 +459,42 @@ def test_no_authorization_header(middleware):
     assert not request.is_authorized_for("scope1", "scope2")
     assert not request.is_authorized_for("scope1")
     assert request.is_authorized_for()
+
+
+def test_check_missing_iss(tokendata_scope1):
+    """Enforce claim checks"""
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_scope1, "4")
+    response = middleware(request)
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize(["issuer", "expect_code"], [("NOT_FOOBAR", 401), ("FOOBAR", 200)])
+def test_check_issuer(tokendata_issuer, issuer, expect_code):
+    """Enforce claim checks"""
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"iss": issuer}
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_issuer, "4")
+    response = middleware(request)
+    assert response.status_code == expect_code
+
+
+def test_check_correct_issuer_expired(tokendata_issuer_expired):
+    """When check_claims is given, this also overrides 'exp' checking.
+    Make sure that still works!
+    """
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_issuer_expired, "4")
+    response = middleware(request)
+    assert response.status_code == 401
 
 
 def test_min_scope_sufficient(tokendata_scope1):
