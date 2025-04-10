@@ -88,7 +88,7 @@ class AuthorizationMiddleware:
     def expired_token_response(self):
         """Returns an HttpResponse object with a 401"""
         msg = 'Bearer realm="datapunt", error="expired_token"'
-        response = http.HttpResponse("Unauthorized", status=401)
+        response = http.HttpResponse("Unauthorized. Token expired.", status=401)
         response["WWW-Authenticate"] = msg
         return response
 
@@ -146,7 +146,7 @@ class AuthorizationMiddleware:
             )
         except JWTExpired as e:
             logger.info("API authz problem: token expired %s", raw_jwt)
-            raise _AuthorizationHeaderError(self.invalid_token_response()) from e
+            raise _AuthorizationHeaderError(self.expired_token_response()) from e
         except InvalidJWSSignature as e:
             logger.warning("API authz problem: invalid signature. %s", e)
             raise _AuthorizationHeaderError(self.invalid_token_response()) from e
