@@ -30,7 +30,7 @@ def check_update_keyset():
     """
     settings = get_settings()
     current_time = time.time()
-    if current_time - _keyset_last_update >= settings['MIN_INTERVAL_KEYSET_UPDATE']:
+    if current_time - _keyset_last_update >= settings["MIN_INTERVAL_KEYSET_UPDATE"]:
         init_keyset()
 
 
@@ -44,26 +44,26 @@ def init_keyset():
     _keyset_last_update = time.time()
     settings = get_settings()
 
-    if settings.get('JWKS'):
-        _load_jwks(_keyset, settings['JWKS'])
+    if settings.get("JWKS"):
+        _load_jwks(_keyset, settings["JWKS"])
 
-    if settings.get('JWKS_URL'):
-        _load_jwks_from_url(_keyset, settings['JWKS_URL'])
+    if settings.get("JWKS_URL"):
+        _load_jwks_from_url(_keyset, settings["JWKS_URL"])
 
-    if settings.get('JWKS_URLS'):
-        for url in settings['JWKS_URLS']:
+    if settings.get("JWKS_URLS"):
+        for url in settings["JWKS_URLS"]:
             _load_jwks_from_url(_keyset, url)
 
-    if len(_keyset['keys']) == 0:
-        raise AuthzConfigurationError('No keys loaded!')
+    if len(_keyset["keys"]) == 0:
+        raise AuthzConfigurationError("No keys loaded!")
 
 
 def _load_jwks(keyset: JWKSet, jwks):
     try:
         keyset.import_keyset(jwks)
     except JWException as e:
-        raise AuthzConfigurationError('Failed to import keyset from settings') from e
-    logger.info('Loaded JWKS from JWKS setting.')
+        raise AuthzConfigurationError("Failed to import keyset from settings") from e
+    logger.info("Loaded JWKS from JWKS setting.")
 
 
 def _load_jwks_from_url(keyset: JWKSet, jwks_url):
@@ -72,10 +72,10 @@ def _load_jwks_from_url(keyset: JWKSet, jwks_url):
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise AuthzConfigurationError(
-            'Failed to get Keycloak keyset from url: {}, error: {}'.format(jwks_url, e)
+            f"Failed to get Keycloak keyset from url: {jwks_url}, error: {e}"
         )
     try:
         keyset.import_keyset(response.text)
     except JWException as e:
-        raise AuthzConfigurationError('Failed to import Keycloak keyset') from e
-    logger.info('Loaded JWKS from JWKS_URL setting {}'.format(jwks_url))
+        raise AuthzConfigurationError("Failed to import Keycloak keyset") from e
+    logger.info(f"Loaded JWKS from JWKS_URL setting {jwks_url}")
