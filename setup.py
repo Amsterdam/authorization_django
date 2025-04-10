@@ -11,17 +11,18 @@ packages = [
     "authorization_django.extensions",
 ]
 requires = [
-    "Django>=1.10.3",
-    "requests>=2.20.1",
-    "jwcrypto>=1.4.2",
+    "Django>=4.2",
+    "requests>=2.32.3",
+    "jwcrypto>=1.5.6",
 ]
 requires_test = [
-    "pytest>=3.0.5",
-    "pytest-cov>=2.4.0",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+    "pytest-django>=4.10.0",
     "requests_mock",
 ]
 requires_extras = {
-    "dev": [] + requires_test,
+    "tests": [] + requires_test,
     "extended": ["djangorestframework>=3.15.2", "drf-spectacular>=0.28.0"] + requires_test,
 }
 
@@ -42,7 +43,6 @@ setup(
         "Topic :: System :: Systems Administration :: Authentication/Directory",
         "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
