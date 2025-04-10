@@ -23,6 +23,7 @@ _available_settings = {
         "RS384",
         "RS512",
     ],
+    "CHECK_CLAIMS": {},
     "MIN_SCOPE": (),
     "PROTECTED": [],
     "ALWAYS_OK": False,
@@ -91,8 +92,21 @@ def load_settings():
 
 
 def _validate_values(user_settings: dict):
-    if not user_settings.get("JWKS") and not user_settings.get("JWKS_URL"):
+    if not user_settings["JWKS"] and not user_settings["JWKS_URL"]:
         raise AuthzConfigurationError("Either JWKS or JWKS_URL must be set, or both")
+
+    is_entra = (
+        user_settings["JWKS"]
+        and user_settings["JWKS"].startswith("https://login.microsoftonline.com/")
+    ) or any(
+        url.startswith("https://login.microsoftonline.com/") for url in user_settings["JWKS_URLS"]
+    )
+    if is_entra and {"iss", "aud"}.isdisjoint(user_settings["CHECK_CLAIMS"]):
+        # As tokens handed out by Entra ID can come from other instances,
+        # checking the issuer and audience is super important!
+        raise AuthzConfigurationError(
+            "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim in CHECK_CLAIMS setting"
+        )
 
     if isinstance(user_settings["MIN_SCOPE"], str):
         user_settings["MIN_SCOPE"] = (user_settings["MIN_SCOPE"],)
