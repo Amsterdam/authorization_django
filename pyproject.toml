@@ -15,7 +15,7 @@ addopts = [
 branch = true
 source = ["authorization_django"]
 omit = ["*/migrations/*.py", "*/test*.py", "*/tests/*"]
-plugins = ["django_coverage_plugin"]
+#plugins = ["django_coverage_plugin"]
 
 
 # ==== black ====
