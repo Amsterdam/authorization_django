@@ -7,9 +7,6 @@ import types
 
 from django.conf import settings as django_settings
 
-# A sentinel object for required settings
-_required = object()
-
 # The Django settings key
 _settings_key = "DATAPUNT_AUTHZ"
 
@@ -39,11 +36,6 @@ _settings = {}
 
 # Preprocessing: the set of all available configuration keys
 _available_settings_keys = set(_available_settings.keys())
-
-# Preprocessing: the set of all required configuration keys
-_required_settings_keys = {
-    key for key, setting in _available_settings.items() if setting is _required
-}
 
 
 class AuthzConfigurationError(Exception):
@@ -85,20 +77,20 @@ def load_settings():
     user_settings = dict(getattr(django_settings, _settings_key, {}))
     user_settings_keys = set(user_settings.keys())
 
-    # Check for required but missing settings
-    missing = _required_settings_keys - user_settings_keys
-    if missing:
-        raise AuthzConfigurationError(f"Missing required {_settings_key} config: {missing}")
-
     # Check for unknown settings
     unknown = user_settings_keys - _available_settings_keys
     if unknown:
         raise AuthzConfigurationError(f"Unknown {_settings_key} config params: {unknown}")
 
     # Merge defaults with provided settings
-    defaults = _available_settings_keys - user_settings_keys
-    user_settings.update({key: _available_settings[key] for key in defaults})
+    missing_defaults = _available_settings_keys - user_settings_keys
+    user_settings.update({key: _available_settings[key] for key in missing_defaults})
 
+    _validate_values(user_settings)
+    return types.MappingProxyType(user_settings)
+
+
+def _validate_values(user_settings: dict):
     if not user_settings.get("JWKS") and not user_settings.get("JWKS_URL"):
         raise AuthzConfigurationError("Either JWKS or JWKS_URL must be set, or both")
 
@@ -114,28 +106,45 @@ def load_settings():
     for resource in user_settings["PROTECTED"]:
         if not isinstance(resource, tuple) or not len(resource) == 3:
             raise ProtectedRecourceSyntaxError("Resource in PROTECTED must be a tuple of length 3")
+
         (route, methods, scopes) = resource
-        if not isinstance(route, str):
-            raise AuthzConfigurationError("Route in PROTECTED resource must be a string")
-        for aroute in user_settings["FORCED_ANONYMOUS_ROUTES"]:
-            if route.startswith(aroute):
-                raise ProtectedRouteConflictError(
-                    f"{route} is configured in PROTECTED, but this would be "
-                    f"overruled by {aroute} in FORCED_ANONYMOUS_ROUTES"
-                )
-        if not isinstance(methods, list):
-            raise AuthzConfigurationError("Methods in PROTECTED resource must be a list")
-        for method in methods:
-            if method not in _methods_valid_options:
-                str_methods = ", ".join(_methods_valid_options)
-                raise AuthzConfigurationError(
-                    f"Invalid value for methods: {method}. Must be one of {str_methods}."
-                )
-        if not isinstance(scopes, list):
-            raise AuthzConfigurationError("Scopes in PROTECTED resource must be a list")
-        if not len(scopes) > 0:
-            raise NoRequiredScopesError(
-                f"You must require at least one scope for protected route {route}"
+        _validate_protected_route(route, user_settings)
+        _validate_protected_methods(methods)
+        _validate_protected_scopes(scopes, route)
+
+
+def _validate_protected_route(route, user_settings):
+    """Validate 'route' in PROTECTED block."""
+    if not isinstance(route, str):
+        raise AuthzConfigurationError("Route in PROTECTED resource must be a string")
+
+    for aroute in user_settings["FORCED_ANONYMOUS_ROUTES"]:
+        if route.startswith(aroute):
+            raise ProtectedRouteConflictError(
+                f"{route} is configured in PROTECTED, but this would be "
+                f"overruled by {aroute} in FORCED_ANONYMOUS_ROUTES"
             )
 
-    return types.MappingProxyType(user_settings)
+
+def _validate_protected_methods(methods):
+    """Validate 'methods' in PROTECTED block."""
+    if not isinstance(methods, list):
+        raise AuthzConfigurationError("Methods in PROTECTED resource must be a list")
+
+    for method in methods:
+        if method not in _methods_valid_options:
+            str_methods = ", ".join(_methods_valid_options)
+            raise AuthzConfigurationError(
+                f"Invalid value for methods: {method}. Must be one of {str_methods}."
+            )
+
+
+def _validate_protected_scopes(scopes, route):
+    """Validate 'scopes' in PROTECTED block."""
+    if not isinstance(scopes, list):
+        raise AuthzConfigurationError("Scopes in PROTECTED resource must be a list")
+
+    if not len(scopes) > 0:
+        raise NoRequiredScopesError(
+            f"You must require at least one scope for protected route {route}"
+        )
