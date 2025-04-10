@@ -98,9 +98,6 @@ TESTSETTINGS = {
 }
 
 
-conf.settings.configure(DEBUG=True)
-
-
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
     config.init_settings()

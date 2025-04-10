@@ -6,7 +6,8 @@ django_find_project = false
 pythonpath = "."
 testpaths = ["tests"]
 addopts = [
-    "--strict-markers"
+    "--strict-markers",
+    "--ds=tests.settings"
 ]
 
 # ==== Coverage ====
