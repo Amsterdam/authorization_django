@@ -1,7 +1,8 @@
 """
-    authorization_django.middleware
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+authorization_django.middleware
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
+
 import logging
 import json
 
@@ -20,7 +21,7 @@ class _AuthorizationHeaderError(Exception):
 
 
 def authorization_middleware(get_response):
-    """ Django middleware to parse incoming access tokens, validate them and
+    """Django middleware to parse incoming access tokens, validate them and
     set an authorization function on the request.
 
     The decision to use a generic middleware rather than an
@@ -44,12 +45,12 @@ def authorization_middleware(get_response):
         return True
 
     def authorize_function(scopes, token_signature, x_unique_id=None):
-        """ Creates a partial around :func:`levels.is_authorized`
+        """Creates a partial around :func:`levels.is_authorized`
         that wraps the current user's scopes.
 
         :return func:
         """
-        log_msg_scopes = 'Granted access (needed: {}, granted: {}, token signature: {})'
+        log_msg_scopes = "Granted access (needed: {}, granted: {}, token signature: {})"
 
         def is_authorized(*needed_scopes):
             granted_scopes = set(scopes)
@@ -58,60 +59,57 @@ def authorization_middleware(get_response):
             if needed_scopes and result:
                 msg = log_msg_scopes.format(needed_scopes, granted_scopes, token_signature)
                 if x_unique_id:
-                    msg += ' X-Unique-ID: {}'.format(x_unique_id)
+                    msg += f" X-Unique-ID: {x_unique_id}"
                 logger.info(msg)
             return result
 
         return is_authorized
 
     def authorize_forced_anonymous(_):
-        """ Authorize function for routes that are forced anonymous"""
-        raise Exception('Should not call is_authorized_for in anonymous routes')
+        """Authorize function for routes that are forced anonymous"""
+        raise Exception("Should not call is_authorized_for in anonymous routes")
 
     def insufficient_scope():
         """Returns an HttpResponse object with a 401."""
         msg = 'Bearer realm="datapunt", error="insufficient_scope"'
-        response = http.HttpResponse('Unauthorized', status=401)
-        response['WWW-Authenticate'] = msg
+        response = http.HttpResponse("Unauthorized", status=401)
+        response["WWW-Authenticate"] = msg
         return response
 
     def expired_token():
-        """ Returns an HttpResponse object with a 401
-        """
+        """Returns an HttpResponse object with a 401"""
         msg = 'Bearer realm="datapunt", error="expired_token"'
-        response = http.HttpResponse('Unauthorized', status=401)
-        response['WWW-Authenticate'] = msg
+        response = http.HttpResponse("Unauthorized", status=401)
+        response["WWW-Authenticate"] = msg
         return response
 
     def invalid_token():
-        """ Returns an HttpResponse object with a 401
-        """
+        """Returns an HttpResponse object with a 401"""
         msg = 'Bearer realm="datapunt", error="invalid_token"'
-        response = http.HttpResponse('Unauthorized', status=401)
-        response['WWW-Authenticate'] = msg
+        response = http.HttpResponse("Unauthorized", status=401)
+        response["WWW-Authenticate"] = msg
         return response
 
     def invalid_request():
-        """ Returns an HttpResponse object with a 400
-        """
+        """Returns an HttpResponse object with a 400"""
         msg = (
-            "Bearer realm=\"datapunt\", error=\"invalid_request\", "
-            "error_description=\"Invalid Authorization header format; "
-            "should be: 'Bearer [token]'\"")
-        response = http.HttpResponse('Bad Request', status=400)
-        response['WWW-Authenticate'] = msg
+            'Bearer realm="datapunt", error="invalid_request", '
+            'error_description="Invalid Authorization header format; '
+            "should be: 'Bearer [token]'\""
+        )
+        response = http.HttpResponse("Bad Request", status=400)
+        response["WWW-Authenticate"] = msg
         return response
 
     def token_data(authz_header):
-        """ Get the token data present in the given authorization header.
-        """
-        prefix = authz_header[:len('Bearer ')]
+        """Get the token data present in the given authorization header."""
+        prefix = authz_header[: len("Bearer ")]
 
-        if prefix.lower() != 'bearer ':
+        if prefix.lower() != "bearer ":
             logger.warning('Invalid authz header, does not start with "Bearer "')
             raise _AuthorizationHeaderError(invalid_request())
 
-        raw_jwt = authz_header[len("Bearer "):]
+        raw_jwt = authz_header[len("Bearer ") :]
         try:
             jwt = decode_token(raw_jwt)
         except JWTMissingKey:
@@ -119,110 +117,109 @@ def authorization_middleware(get_response):
             try:
                 jwt = decode_token(raw_jwt)
             except JWTMissingKey as e:
-                logger.warning('API authz problem: unknown key. {}'.format(e))
+                logger.warning(f"API authz problem: unknown key. {e}")
                 raise _AuthorizationHeaderError(invalid_token())
 
         claims = get_claims(jwt)
-        sub = claims['sub']
-        scopes = claims['scopes']
-        claims = claims['claims']
-        token_signature = raw_jwt.split('.')[2]
+        sub = claims["sub"]
+        scopes = claims["scopes"]
+        claims = claims["claims"]
+        token_signature = raw_jwt.split(".")[2]
         return scopes, token_signature, sub, claims
 
     def decode_token(raw_jwt):
         settings = get_settings()
         try:
-            jwt = JWT(jwt=raw_jwt, key=get_keyset(), algs=settings['ALLOWED_SIGNING_ALGORITHMS'])
-        except JWTExpired:
-            logger.info(
-                'API authz problem: token expired {}'.format(raw_jwt)
+            jwt = JWT(
+                jwt=raw_jwt,
+                key=get_keyset(),
+                algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
             )
+        except JWTExpired:
+            logger.info(f"API authz problem: token expired {raw_jwt}")
             raise _AuthorizationHeaderError(invalid_token())
         except InvalidJWSSignature as e:
-            logger.warning('API authz problem: invalid signature. {}'.format(e))
+            logger.warning(f"API authz problem: invalid signature. {e}")
             raise _AuthorizationHeaderError(invalid_token())
         except ValueError as e:
-            logger.warning(
-                'API authz problem: {}'.format(e))
+            logger.warning(f"API authz problem: {e}")
             raise _AuthorizationHeaderError(invalid_token())
         return jwt
 
     def get_claims(jwt):
         claims = json.loads(jwt.claims)
-        if 'scopes' in claims:
+        if "scopes" in claims:
             # Authz token structure
             return {
-                'sub': claims.get('sub'),
-                'scopes': claims['scopes'],
-                'claims': claims
+                "sub": claims.get("sub"),
+                "scopes": claims["scopes"],
+                "claims": claims,
             }
-        elif claims.get('realm_access'):
+        elif claims.get("realm_access"):
             # Keycloak token structure
             return {
-                'sub': claims.get('sub'),
-                'scopes': {convert_scope(r) for r in claims['realm_access']['roles']},
-                'claims': claims
+                "sub": claims.get("sub"),
+                "scopes": {convert_scope(r) for r in claims["realm_access"]["roles"]},
+                "claims": claims,
             }
-        elif claims.get('roles') and (claims.get('unique_name') or claims.get('upn')):
+        elif claims.get("roles") and (claims.get("unique_name") or claims.get("upn")):
             # Microsoft Entra ID token structure
             return {
-                'sub': claims.get('unique_name', claims.get('upn')),
-                'scopes': set(claims['roles']),
-                'claims': claims
+                "sub": claims.get("unique_name", claims.get("upn")),
+                "scopes": set(claims["roles"]),
+                "claims": claims,
             }
-        elif claims.get('groups') and (claims.get('unique_name') or claims.get('un')):
+        elif claims.get("groups") and (claims.get("unique_name") or claims.get("un")):
             # Microsoft Entra ID token structure (previously called Azure AD), using group claims
             return {
-                'sub': claims.get('unique_name', claims.get('un')),
-                'scopes': {convert_scope(group.split(" ")[0]) for group in claims.get('groups')},
-                'claims': claims
+                "sub": claims.get("unique_name", claims.get("un")),
+                "scopes": {convert_scope(group.split(" ")[0]) for group in claims.get("groups")},
+                "claims": claims,
             }
         else:
-            logger.warning(
-                'API authz problem: access token misses scopes claim'
-            )
+            logger.warning("API authz problem: access token misses scopes claim")
             raise _AuthorizationHeaderError(invalid_token())
 
     def convert_scope(scope):
-        """ Convert Keycloak role to authz style scope
-        """
+        """Convert Keycloak role to authz style scope"""
         return scope.upper().replace("_", "/")
 
     def method_is_protected(method, protected_methods):
         if method.upper() in protected_methods:
             return True
-        return '*' in protected_methods and method.upper() != 'OPTIONS'
+        return "*" in protected_methods and method.upper() != "OPTIONS"
 
     def middleware(request):
-        """ Parses the Authorization header, decodes and validates the JWT and
+        """Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
         """
 
         # Config is set to ALWAYS OK, authorisation check disabled
-        if middleware_settings['ALWAYS_OK']:
-            logger.warning('API authz DISABLED')
+        if middleware_settings["ALWAYS_OK"]:
+            logger.warning("API authz DISABLED")
             request.is_authorized_for = always_ok
-            request.get_token_subject = 'ALWAYS_OK'
+            request.get_token_subject = "ALWAYS_OK"
             return get_response(request)
 
         # Path is in forced anonymous routes or method is Options
         forced_anonymous = any(
             request.path.startswith(route)
-            for route in middleware_settings['FORCED_ANONYMOUS_ROUTES'])
+            for route in middleware_settings["FORCED_ANONYMOUS_ROUTES"]
+        )
 
-        if forced_anonymous or request.method == 'OPTIONS':
+        if forced_anonymous or request.method == "OPTIONS":
             request.is_authorized_for = authorize_forced_anonymous
             request.get_token_subject = None
             return get_response(request)
 
         # Standard case
         scopes = []
-        token_signature = ''
+        token_signature = ""
         subject = None
         claims = None
 
-        x_unique_id = request.META.get('HTTP_X_UNIQUE_ID')
-        authz_header = request.META.get('HTTP_AUTHORIZATION')
+        x_unique_id = request.headers.get("x-unique-id")
+        authz_header = request.headers.get("authorization")
 
         if authz_header:
             try:
@@ -232,16 +229,18 @@ def authorization_middleware(get_response):
 
         authz_func = authorize_function(scopes, token_signature, x_unique_id)
 
-        min_scope = middleware_settings['MIN_SCOPE']
+        min_scope = middleware_settings["MIN_SCOPE"]
         if len(min_scope) > 0 and not authz_func(*min_scope):
             return insufficient_scope()
 
-        PROTECTED = middleware_settings['PROTECTED']
+        PROTECTED = middleware_settings["PROTECTED"]
         for resource in PROTECTED:
             (route, protected_methods, required_scopes) = resource
-            if request.path.startswith(route) and \
-                method_is_protected(request.method, protected_methods) and \
-                not authz_func(*required_scopes):
+            if (
+                request.path.startswith(route)
+                and method_is_protected(request.method, protected_methods)
+                and not authz_func(*required_scopes)
+            ):
                 return insufficient_scope()
 
         request.is_authorized_for = authz_func
