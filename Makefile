@@ -5,7 +5,7 @@ PYTHON = python3
 release: test
 	$(PYTHON) setup.py sdist upload
 
-dist: 
+dist:
 	$(PYTHON) setup.py sdist
 
 build:
@@ -16,4 +16,3 @@ test:
 
 coverage:
 	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no ."
-
