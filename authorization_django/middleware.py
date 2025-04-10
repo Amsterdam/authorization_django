@@ -67,7 +67,7 @@ def authorization_middleware(get_response):
 
     def authorize_forced_anonymous(_):
         """Authorize function for routes that are forced anonymous"""
-        raise Exception("Should not call is_authorized_for in anonymous routes")
+        raise RuntimeError("Should not call is_authorized_for in anonymous routes")
 
     def insufficient_scope():
         """Returns an HttpResponse object with a 401."""
