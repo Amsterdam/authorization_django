@@ -96,8 +96,8 @@ def _validate_values(user_settings: dict):
         raise AuthzConfigurationError("Either JWKS or JWKS_URL must be set, or both")
 
     is_entra = (
-        user_settings["JWKS"]
-        and user_settings["JWKS"].startswith("https://login.microsoftonline.com/")
+        user_settings["JWKS_URL"]
+        and user_settings["JWKS_URL"].startswith("https://login.microsoftonline.com/")
     ) or any(
         url.startswith("https://login.microsoftonline.com/") for url in user_settings["JWKS_URLS"]
     )
