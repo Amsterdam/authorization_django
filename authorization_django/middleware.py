@@ -180,10 +180,12 @@ class AuthorizationMiddleware:
                 "scopes": {self.convert_scope(r) for r in claims["realm_access"]["roles"]},
                 "claims": claims,
             }
-        elif claims.get("roles") and (claims.get("unique_name") or claims.get("upn")):
+        elif claims.get("roles") and (
+            claims.get("unique_name") or claims.get("upn") or claims.get("sub")
+        ):
             # Microsoft Entra ID token structure
             return {
-                "sub": claims.get("unique_name", claims.get("upn")),
+                "sub": claims.get("unique_name", claims.get("upn", claims.get("sub"))),
                 "scopes": set(claims["roles"]),
                 "claims": claims,
             }
