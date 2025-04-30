@@ -133,6 +133,8 @@ make test
 
 Changelog
 ---------
+- v1.6.1
+  * Catch Entra ID SPN tokens
 - v1.6.0
   * Added claim checking using `CHECK_CLAIMS`, and enforce it for Microsoft Entra ID.
 - v1.5.0
