@@ -41,7 +41,7 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | JWKS                       | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details    | ""                                                     |
 | JWKS_URL                   | A url to a valid JWKS, to validate tokens                                      | ""                                                     |
 | JWKS_URLS                  | A list of URLs to a valid JWKS, to validate tokens                             | ""                                                     |
-| CHECK_CLAIMS               | Which claims to check, e.g. ``{"iss": "issuer name"}``                         | {}                                                     |
+| CHECK_CLAIMS               | Which claims to check, e.g. `{"iss": "...", "aud": "..."}`                     | {}                                                     |
 | MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update                  | 30                                                     |
 | MIN_SCOPE                  | Minimum needed scope(s) to view non-whitelisted urls                           | empty tuple                                            |
 | FORCED_ANONYMOUS_ROUTES    | Routes for which not to check for authorization (whitelist)                    | empty tuple                                            |
@@ -133,6 +133,8 @@ make test
 
 Changelog
 ---------
+- v1.6.0
+  * Added claim checking using `CHECK_CLAIMS`, and enforce it for Microsoft Entra ID.
 - v1.5.0
   * Add authentication class for django rest framework and drf-spectacular
 - v1.4.0
