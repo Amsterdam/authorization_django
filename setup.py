@@ -15,16 +15,16 @@ requires = [
     "requests>=2.32.3",
     "jwcrypto>=1.5.6",
 ]
-requires_test = [
+tests_require = [
     "pytest>=8.3.5",
     "pytest-cov>=6.0.0",
     "pytest-django>=4.10.0",
     "requests_mock",
 ]
-requires_extras = {
-    "tests": [] + requires_test,
-    "extended": ["djangorestframework>=3.15.2", "drf-spectacular>=0.28.0"] + requires_test,
-}
+extended_require = [
+    "djangorestframework>=3.15.2",
+    "drf-spectacular>=0.28.0",
+]
 
 setup(
     name="datapunt-authorization-django",
@@ -50,6 +50,8 @@ setup(
     ],
     packages=packages,
     install_requires=requires,
-    tests_require=requires_test,
-    extras_require=requires_extras,
+    extras_require={
+        "tests": tests_require,
+        "extended": extended_require + tests_require,
+    },
 )
