@@ -12,7 +12,7 @@ build:
 	$(PYTHON) setup.py build
 
 test:
-	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --capture=no ."
+	pytest -p no:cacheprovider --verbose --capture=no .
 
 coverage:
-	$(PYTHON) setup.py test -a "-p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no ."
+	pytest -p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no .
