@@ -2,7 +2,7 @@ from drf_spectacular.extensions import OpenApiAuthenticationExtension
 
 
 class JWTTokenScheme(OpenApiAuthenticationExtension):
-    target_class = "authorization_django.extensions.scheme.JWTAuthentication"
+    target_class = "authorization_django.extensions.drf.JWTAuthentication"
     name = "JWTAuthentication"
 
     def get_security_definition(self, auto_schema):
