@@ -8,6 +8,7 @@ import logging
 from time import time
 
 from django import http
+from django.http import HttpRequest
 from jwcrypto.common import JWException
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
@@ -58,9 +59,10 @@ class AuthorizationMiddleware:
 
         :return func:
         """
+        granted_scopes = set(scopes)
 
-        def is_authorized(*needed_scopes):
-            granted_scopes = set(scopes)
+        def is_authorized_for(*needed_scopes):
+            """The ``request.is_authorized_for()`` function that is assigned to the request object."""
             needed_scopes = set(needed_scopes)
             result = needed_scopes.issubset(granted_scopes)
             if needed_scopes and result:
@@ -72,7 +74,7 @@ class AuthorizationMiddleware:
                 logger.info(msg, *args)
             return result
 
-        return is_authorized
+        return is_authorized_for
 
     @staticmethod
     def authorize_forced_anonymous(_):
@@ -206,7 +208,7 @@ class AuthorizationMiddleware:
         """Convert Keycloak role to authz style scope"""
         return scope.upper().replace("_", "/")
 
-    def __call__(self, request):
+    def __call__(self, request: HttpRequest):
         """Parses the Authorization header, decodes and validates the JWT and
         adds the is_authorized_for function to the request.
         """
