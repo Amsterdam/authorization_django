@@ -26,9 +26,12 @@ in `settings.py`, and configure either a JWKS as json or an url to a JWKS.
 ```
 MIDDLEWARE = (
    ...
-   'authorization_django.authorization_middleware',
+   'authorization_django.middleware.AuthorizationMiddleware',
 )
 ```
+
+The old-style of using `authorization_django.authorization_middleware` is still supported,
+but no longer recommended.
 
 Settings
 --------
@@ -48,6 +51,13 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | PROTECTED                  | Routes which require scopes for access. Optionally with distinction of methods | empty list                                             |
 | ALWAYS_OK                  | Disable any authorization checks, use only for local development               | False                                                  |
 | ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens                              | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'] |
+
+The possible values for `CHECK_CLAIMS` are the RFC 7519 defined claims.
+The relevant values are:
+
+* **iss** (`str` issuer): Identifies the principal that issued the token.
+* **aud** (`str`/`list` audience): Identifies the intended audience. This can be a list too.
+
 
 Usage
 -----
@@ -104,18 +114,39 @@ else:
   ...  # only the public stuff
 ```
 
-### Extra Authentication class for use with Django Rest Framework / Spectacular
+### Django REST Framework Extensions
 
-This has been added in here so they can be reused on our other repositories
-(DSO-API, BRP Kennisgevingen). When you have a DJRF view somewhere, you can
-add the JWTAuthentication as authentication class:
+To enforce JWT authentication for REST views, add the following code.
+This will also update the generated OpenAPI specification when drf-spectacular is used in the project.
 
 ```python
+from rest_framework.views import APIView
 from authorization_django.extensions.drf import JWTAuthentication
 
-class MySpecialView(APIView):
-  authentication_classes = [JWTAuthentication]
-  ...
+
+class CustomAPIView(APIView):
+    authentication_classes = [JWTAuthentication]
+```
+
+Or configure this globally:
+
+```python
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "authorization_django.extensions.drf.JWTAuthentication",
+    ],
+}
+```
+
+Additional token-scopes can also be verified for specific view:
+
+```python
+from rest_framework.views import APIView
+from authorization_django.extensions.drf import HasTokenScopes
+
+
+class CustomAPIView(APIView):
+    permission_classes = [HasTokenScopes("extra-scope1", "extra-scope2")]
 ```
 
 Contribute
@@ -134,7 +165,7 @@ make test
 Changelog
 ---------
 - v1.6.1
-  * Catch Entra ID SPN tokens
+  * Fix reading subject claim for Entra ID SPN tokens.
 - v1.6.0
   * Added claim checking using `CHECK_CLAIMS`, and enforce it for Microsoft Entra ID.
 - v1.5.0
