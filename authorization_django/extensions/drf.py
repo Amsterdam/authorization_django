@@ -1,8 +1,13 @@
+import sys
+
+from django.conf import settings
 from rest_framework import exceptions
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.request import Request
 
-import authorization_django.extensions.scheme  # noqa: F401
+# Auto-register a schema extension when the project uses drf-spectacular
+if "drf_spectacular" in settings.INSTALLED_APPS or "drf_spectacular" in sys.modules:
+    import authorization_django.extensions.scheme  # noqa: F401
 
 
 class JWTAuthentication(BaseAuthentication):
