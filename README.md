@@ -164,6 +164,8 @@ make test
 
 Changelog
 ---------
+- v1.6.2
+  * Add appid to Entra token claims
 - v1.6.1
   * Fix reading subject claim for Entra ID SPN tokens.
 - v1.6.0
