@@ -215,6 +215,7 @@ def tokendata_entra_id_two_scopes():
         "exp": now + 30,
         "roles": ["test-scope-1", "test-scope-2"],
         "unique_name": "test@tester.nl",
+        "appid": "client_id",
     }
 
 
@@ -355,6 +356,7 @@ def test_entra_id_token(middleware, tokendata_entra_id_two_scopes):
 
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"test-scope-1", "test-scope-2"}
+    assert request.get_token_claims["appid"] == "client_id"
 
 
 @pytest.mark.xfail(reason="AD Token not supported for now")

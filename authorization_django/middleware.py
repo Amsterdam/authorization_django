@@ -190,6 +190,7 @@ class AuthorizationMiddleware:
                 "sub": claims.get("unique_name", claims.get("upn", claims.get("sub"))),
                 "scopes": set(claims["roles"]),
                 "claims": claims,
+                "appid": claims.get("appid"),  # Get the appid for service accounts
             }
         elif claims.get("groups") and (claims.get("unique_name") or claims.get("un")):
             # Microsoft Entra ID token structure (previously called Azure AD), using group claims
