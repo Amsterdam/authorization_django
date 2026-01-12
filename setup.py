@@ -5,7 +5,7 @@ from setuptools import setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-version = "1.6.2"
+version = "1.7.0"
 packages = [
     "authorization_django",
     "authorization_django.extensions",
@@ -43,10 +43,11 @@ setup(
         "Topic :: System :: Systems Administration :: Authentication/Directory",
         "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
     ],
     packages=packages,
     install_requires=requires,
