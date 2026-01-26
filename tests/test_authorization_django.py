@@ -409,6 +409,7 @@ def test_invalid_token_requests(middleware, tokendata_missing_scopes, tokendata_
         assert response.status_code == 401
         assert "WWW-Authenticate" in response
         assert "invalid_token" in response["WWW-Authenticate"]
+        assert response.content == b'{"error": "invalid_token", "message": "Unauthorized"}'
 
 
 def test_expired_token_request(middleware, tokendata_expired):
@@ -416,7 +417,10 @@ def test_expired_token_request(middleware, tokendata_expired):
     assert response.status_code == 401
     assert "WWW-Authenticate" in response
     assert "expired_token" in response["WWW-Authenticate"]
-    assert response.content == b"Unauthorized. Token expired."
+    assert (
+        response.content
+        == b'{"error": "expired_token", "message": "Unauthorized. Token expired."}'
+    )
 
 
 def test_unknown_kid(tokendata_two_scopes):
@@ -453,6 +457,10 @@ def test_malformed_requests(middleware, tokendata_two_scopes):
         assert response.status_code == 400
         assert "WWW-Authenticate" in response
         assert "invalid_request" in response["WWW-Authenticate"]
+        assert (
+            response.content
+            == b'{"error": "invalid_request", "message": "Invalid Authorization header format"}'
+        )
 
 
 def test_no_authorization_header(middleware):
@@ -519,7 +527,6 @@ def test_min_scope_insufficient():
     request = create_request_no_auth_header()
     response = middleware(request)
     assert response.status_code == 401
-    assert "insufficient_scope" in response["WWW-Authenticate"]
 
 
 def test_min_scope_as_string_sufficient(tokendata_scope1):

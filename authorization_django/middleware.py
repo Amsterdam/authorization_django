@@ -8,7 +8,7 @@ import logging
 from time import time
 
 from django import http
-from django.http import HttpRequest
+from django.http import HttpRequest, JsonResponse
 from jwcrypto.common import JWException
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
@@ -18,10 +18,20 @@ from .jwks import check_update_keyset, get_keyset
 logger = logging.getLogger(__name__)
 
 
-class _AuthorizationHeaderError(Exception):
+class _AuthorizationError(Exception):
 
-    def __init__(self, response):
-        self.response = response
+    def __init__(
+        self,
+        status_code,
+        code,
+        msg,
+        www_authenticate=None,
+    ):
+        self.status_code = status_code
+        self.code = code
+        self.message = msg
+        self.www_authenticate = www_authenticate
+        super().__init__(status_code, code, msg, www_authenticate)
 
 
 def authorization_middleware(get_response):
@@ -81,37 +91,43 @@ class AuthorizationMiddleware:
         """Authorize function for routes that are forced anonymous"""
         raise RuntimeError("Should not call is_authorized_for in anonymous routes")
 
-    def insufficient_scope_response(self):
-        """Returns an HttpResponse object with a 401."""
-        msg = 'Bearer realm="datapunt", error="insufficient_scope"'
-        response = http.HttpResponse("Unauthorized", status=401)
-        response["WWW-Authenticate"] = msg
-        return response
-
-    def expired_token_response(self):
-        """Returns an HttpResponse object with a 401"""
-        msg = 'Bearer realm="datapunt", error="expired_token"'
-        response = http.HttpResponse("Unauthorized. Token expired.", status=401)
-        response["WWW-Authenticate"] = msg
-        return response
-
-    def invalid_token_response(self):
-        """Returns an HttpResponse object with a 401"""
-        msg = 'Bearer realm="datapunt", error="invalid_token"'
-        response = http.HttpResponse("Unauthorized", status=401)
-        response["WWW-Authenticate"] = msg
-        return response
-
-    def invalid_request_response(self):
-        """Returns an HttpResponse object with a 400"""
-        msg = (
-            'Bearer realm="datapunt", error="invalid_request", '
-            'error_description="Invalid Authorization header format; '
-            "should be: 'Bearer [token]'\""
+    def insufficient_scope_error(self):
+        """Returns an _AuthorizationError with a 401."""
+        return _AuthorizationError(
+            status_code=401,
+            code="insufficient_scope",
+            msg="Unauthorized",
+            www_authenticate='Bearer realm="datapunt", error="insufficient_scope"',
         )
-        response = http.HttpResponse("Bad Request", status=400)
-        response["WWW-Authenticate"] = msg
-        return response
+
+    def expired_token_error(self):
+        """Returns an _AuthorizationError with a 401."""
+        return _AuthorizationError(
+            status_code=401,
+            code="expired_token",
+            msg="Unauthorized. Token expired.",
+            www_authenticate='Bearer realm="datapunt", error="expired_token"',
+        )
+
+    def invalid_token_error(self):
+        """Returns an _AuthorizationError with a 401."""
+        return _AuthorizationError(
+            status_code=401,
+            code="invalid_token",
+            msg="Unauthorized",
+            www_authenticate='Bearer realm="datapunt", error="invalid_token"',
+        )
+
+    def invalid_request_error(self):
+        """Returns an _AuthorizationError with a 400."""
+        return _AuthorizationError(
+            status_code=400,
+            code="invalid_request",
+            msg="Invalid Authorization header format",
+            www_authenticate='Bearer realm="datapunt", error="invalid_request", '
+            'error_description="Invalid Authorization header format; '
+            "should be: 'Bearer [token]'\"",
+        )
 
     def parse_token(self, authz_header):
         """Get the token data present in the given authorization header."""
@@ -119,7 +135,7 @@ class AuthorizationMiddleware:
 
         if prefix.lower() != "bearer ":
             logger.warning('Invalid authz header, does not start with "Bearer "')
-            raise _AuthorizationHeaderError(self.invalid_request_response())
+            raise self.invalid_request_error()
 
         raw_jwt = authz_header[len("Bearer ") :]
         try:
@@ -130,7 +146,7 @@ class AuthorizationMiddleware:
                 jwt = self._decode_token(raw_jwt)
             except JWTMissingKey as e:
                 logger.warning("API authz problem: unknown key. %s", e)
-                raise _AuthorizationHeaderError(self.invalid_token_response()) from e
+                raise self.invalid_token_error() from e
 
         claims = self.get_claims(jwt)
         sub = claims["sub"]
@@ -157,13 +173,13 @@ class AuthorizationMiddleware:
             )
         except JWTExpired as e:
             logger.info("API authz problem: token expired %s", raw_jwt)
-            raise _AuthorizationHeaderError(self.expired_token_response()) from e
+            raise self.expired_token_error() from e
         except JWTMissingKey:
             raise  # for parse_token() to handle
         except (JWException, ValueError) as e:
             # invalid signature, invalid claim, missing claim
             logger.warning("API authz problem: %s", e)
-            raise _AuthorizationHeaderError(self.invalid_token_response()) from e
+            raise self.invalid_token_error() from e
         return jwt
 
     def get_claims(self, jwt):
@@ -203,11 +219,30 @@ class AuthorizationMiddleware:
             }
         else:
             logger.warning("API authz problem: access token misses scopes claim")
-            raise _AuthorizationHeaderError(self.invalid_token_response())
+            raise self.invalid_token_error()
 
     def convert_scope(self, scope):
         """Convert Keycloak role to authz style scope"""
         return scope.upper().replace("_", "/")
+
+    def handle_scope(self, authz_func, request: HttpRequest):
+        min_scope = self.middleware_settings["MIN_SCOPE"]
+
+        if not authz_func:
+            raise self.insufficient_scope_error()
+
+        if len(min_scope) > 0 and not authz_func(*min_scope):
+            raise self.insufficient_scope_error()
+
+        PROTECTED = self.middleware_settings["PROTECTED"]
+        for resource in PROTECTED:
+            (route, protected_methods, required_scopes) = resource
+            if (
+                request.path.startswith(route)
+                and _method_is_protected(request.method, protected_methods)
+                and not authz_func(*required_scopes)
+            ):
+                raise self.insufficient_scope_error()
 
     def __call__(self, request: HttpRequest):
         """Parses the Authorization header, decodes and validates the JWT and
@@ -239,29 +274,25 @@ class AuthorizationMiddleware:
         claims = None
 
         x_unique_id = request.headers.get("x-unique-id")
-        authz_header = request.headers.get("authorization")
 
-        if authz_header:
-            try:
+        try:
+            authz_header = request.headers.get("authorization")
+
+            if authz_header:
                 scopes, token_signature, subject, claims = self.parse_token(authz_header)
-            except _AuthorizationHeaderError as e:
-                return e.response
 
-        authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
+            authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
+            self.handle_scope(authz_func, request)
 
-        min_scope = self.middleware_settings["MIN_SCOPE"]
-        if len(min_scope) > 0 and not authz_func(*min_scope):
-            return self.insufficient_scope_response()
-
-        PROTECTED = self.middleware_settings["PROTECTED"]
-        for resource in PROTECTED:
-            (route, protected_methods, required_scopes) = resource
-            if (
-                request.path.startswith(route)
-                and _method_is_protected(request.method, protected_methods)
-                and not authz_func(*required_scopes)
-            ):
-                return self.insufficient_scope_response()
+        except _AuthorizationError as e:
+            payload = {
+                "error": e.code,
+                "message": e.message,
+            }
+            response = JsonResponse(payload, status=e.status_code)
+            if e.www_authenticate:
+                response["WWW-Authenticate"] = e.www_authenticate
+            return response
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
