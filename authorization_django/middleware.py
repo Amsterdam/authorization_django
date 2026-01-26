@@ -8,7 +8,7 @@ import logging
 from time import time
 
 from django import http
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest
 from jwcrypto.common import JWException
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
