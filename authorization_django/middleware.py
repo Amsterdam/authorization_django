@@ -275,7 +275,10 @@ class AuthorizationMiddleware:
         authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
         self.handle_scope(authz_func, request)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> 583f4da (only return a raise, not response + test changes)
 
         # except _AuthorizationError as e:
         #     payload = {
@@ -286,7 +289,10 @@ class AuthorizationMiddleware:
         #     if e.www_authenticate:
         #         response["WWW-Authenticate"] = e.www_authenticate
         #     return response
+<<<<<<< HEAD
 >>>>>>> 2e46300 (only return a raise, not response + test changes)
+=======
+>>>>>>> 583f4da (only return a raise, not response + test changes)
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
