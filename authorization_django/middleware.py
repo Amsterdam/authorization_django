@@ -275,24 +275,24 @@ class AuthorizationMiddleware:
 
         x_unique_id = request.headers.get("x-unique-id")
 
-        try:
-            authz_header = request.headers.get("authorization")
+        # try:
+        authz_header = request.headers.get("authorization")
 
-            if authz_header:
-                scopes, token_signature, subject, claims = self.parse_token(authz_header)
+        if authz_header:
+            scopes, token_signature, subject, claims = self.parse_token(authz_header)
 
-            authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
-            self.handle_scope(authz_func, request)
+        authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
+        self.handle_scope(authz_func, request)
 
-        except _AuthorizationError as e:
-            payload = {
-                "error": e.code,
-                "message": e.message,
-            }
-            response = JsonResponse(payload, status=e.status_code)
-            if e.www_authenticate:
-                response["WWW-Authenticate"] = e.www_authenticate
-            return response
+        # except _AuthorizationError as e:
+        #     payload = {
+        #         "error": e.code,
+        #         "message": e.message,
+        #     }
+        #     response = JsonResponse(payload, status=e.status_code)
+        #     if e.www_authenticate:
+        #         response["WWW-Authenticate"] = e.www_authenticate
+        #     return response
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
