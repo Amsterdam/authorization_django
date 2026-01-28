@@ -164,6 +164,8 @@ make test
 
 Changelog
 ---------
+- v2.0.0rc1
+  * Raise exception instead of 4** response
 - v1.6.2
   * Add appid to Entra token claims
 - v1.6.1
