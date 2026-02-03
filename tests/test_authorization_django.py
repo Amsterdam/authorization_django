@@ -12,6 +12,7 @@ from django import conf
 from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
+from jwcrypto.common import JWException
 
 from authorization_django import authorization_middleware, config, jwks
 from authorization_django.exceptions import AuthorizationError, InsufficientScopeError
@@ -601,6 +602,27 @@ def test_check_correct_issuer_expired(tokendata_issuer_expired):
     """
     testsettings = TESTSETTINGS.copy()
     testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_issuer_expired, "4")
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+
+
+def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
+    """ """
+    testsettings = TESTSETTINGS.copy()
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    with pytest.raises(AuthorizationError) as e:
+        middleware(create_request(tokendata_issuer_expired, "4"))
+    assert e.value.status_code == 401
+
+
+def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
+    """ """
+    testsettings = TESTSETTINGS.copy()
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")
