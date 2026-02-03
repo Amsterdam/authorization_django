@@ -82,7 +82,6 @@ def load_settings():
     unknown = user_settings_keys - _available_settings_keys
     if unknown:
         raise AuthzConfigurationError(f"Unknown {_settings_key} config params: {unknown}")
-
     # Merge defaults with provided settings
     missing_defaults = _available_settings_keys - user_settings_keys
     user_settings.update({key: _available_settings[key] for key in missing_defaults})
@@ -92,9 +91,13 @@ def load_settings():
 
 
 def _validate_values(user_settings: dict):
-    if not user_settings["JWKS"] and not user_settings["JWKS_URL"]:
+    if (
+        not user_settings["JWKS"]
+        and not user_settings["JWKS_URL"]
+        and not user_settings["JWKS_URLS"]
+    ):
         raise AuthzConfigurationError(
-            f"Either {_settings_key}['JWKS'] or {_settings_key}['JWKS_URL'] must be set, or both"
+            f"{_settings_key}['JWKS'], {_settings_key}['JWKS_URL'] or {_settings_key}['JWKS_URLS']  must be set, or all"
         )
 
     is_entra = (
