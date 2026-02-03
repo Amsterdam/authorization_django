@@ -13,7 +13,6 @@ from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
 from jwcrypto.common import JWException
-from jwcrypto.common import JWException
 
 from authorization_django import authorization_middleware, config, jwks
 from authorization_django.exceptions import AuthorizationError, InsufficientScopeError
