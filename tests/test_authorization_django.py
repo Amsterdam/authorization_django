@@ -12,6 +12,7 @@ from django import conf
 from django.http import HttpResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
+from jwcrypto.common import JWException
 
 from authorization_django import authorization_middleware, config, jwks
 from authorization_django.middleware import _AuthorizationError
@@ -73,6 +74,7 @@ JWKS2 = {
         }
     ]
 }
+
 
 ALG_LOOKUP = {
     "1": "HS256",
@@ -187,6 +189,19 @@ def tokendata_two_scopes():
 
 
 @pytest.fixture
+def tokendata_two_scopes_aud_iss():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "scopes": ["scope1", "scope2"],
+        "sub": "test@tester.nl",
+        "aud": "aud",
+        "iss": "iss",
+    }
+
+
+@pytest.fixture
 def tokendata_zero_scopes():
     now = int(time.time())
     return {
@@ -214,6 +229,8 @@ def tokendata_entra_id_two_scopes():
     return {
         "iat": now,
         "exp": now + 30,
+        "aud": "aud",
+        "iss": "https://sts.windows.net",
         "roles": ["test-scope-1", "test-scope-2"],
         "unique_name": "test@tester.nl",
         "appid": "client_id",
@@ -226,6 +243,7 @@ def tokendata_keycloak_two_scopes():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "https://iam.amsterdam.nl",
         "realm_access": {"roles": ["scope_1", "scope_2"]},
         "sub": "test@tester.nl",
     }
@@ -285,6 +303,54 @@ def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+
+def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss):
+    """Verify that loading keyset from entra url works,
+    by checking that aud and iss claims are present
+    and is_authorized_for method correctly evaluates
+    that user has the scopes mentioned in the token data
+    """
+    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {"JWKS": None, "JWKS_URL": jwks_url, "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}}
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes_aud_iss, "4")
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+
+def test_jwks_from_url_entra_error(requests_mock):
+    """Verify that loading keyset from entra url raises an error when aud and iss claims are not set"""
+
+    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
+    with pytest.raises(config.AuthzConfigurationError) as excinfo:
+        reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
+    assert "When using Microsoft Entra ID" in str(excinfo.value)
+
+
+def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
+    """Verify that loading keyset from url list (with Keycloak and Entra keysets) works, by checking that is_authorized_for
+    method correctly evaluates that user has the scopes mentioned in the token data.
+    """
+    kc_jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
+    requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
+            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes_aud_iss, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
 
@@ -351,13 +417,39 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 
-def test_entra_id_token(middleware, tokendata_entra_id_two_scopes):
+def test_keycloak_token_check_claims(middleware, tokendata_keycloak_two_scopes):
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl"}
+    reload_settings(testsettings)
+    request = create_request(tokendata_keycloak_two_scopes, "1")
+    middleware(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
+
+def test_entra_id_token_aud_iss(middleware, tokendata_entra_id_two_scopes):
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://sts.windows.net"}
+    reload_settings(testsettings)
     request = create_request(tokendata_entra_id_two_scopes, "1")
     middleware(request)
 
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"test-scope-1", "test-scope-2"}
     assert request.get_token_claims["appid"] == "client_id"
+
+
+def test_entra_id_token_no_aud(middleware, tokendata_entra_id_two_scopes):
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://sts.windows.net"}
+    reload_settings(testsettings)
+
+    # Remove aud claim
+    tokendata_entra_id_two_scopes.pop("aud", None)
+    request = create_request(tokendata_entra_id_two_scopes, "1")
+    response = middleware(request)
+    assert response.status_code == 401
 
 
 @pytest.mark.xfail(reason="AD Token not supported for now")
@@ -508,6 +600,16 @@ def test_check_correct_issuer_expired(tokendata_issuer_expired):
     with pytest.raises(_AuthorizationError) as e:
         middleware(request)
     assert e.value.status_code == 401
+
+
+def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
+    """ """
+    testsettings = TESTSETTINGS.copy()
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_issuer_expired, "4")
+    response = middleware(request)
+    assert response.status_code == 401
 
 
 def test_min_scope_sufficient(tokendata_scope1):

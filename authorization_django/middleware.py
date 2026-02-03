@@ -156,14 +156,26 @@ class AuthorizationMiddleware:
 
     def _decode_token(self, raw_jwt):
         settings = get_settings()
-        keyset = get_keyset()  # does lazy loading here, inclusing fetching URLs
-
+        keyset = get_keyset()
         check_claims = settings["CHECK_CLAIMS"] or None
         if check_claims:
             # Specifying check_claims disables the automatic check on expiry,
             # so that needs to be explicitly added now.
             check_claims = {**check_claims, "exp": int(time())}
         try:
+            jwt = JWT(
+                jwt=raw_jwt,
+                key=keyset,
+                algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
+            )
+
+            # Keycloak provides no aud claim
+            claims = json.loads(jwt.claims)
+            iss = claims.get("iss", None)
+            if check_claims and iss and iss.startswith("https://iam.amsterdam.nl"):
+                check_claims.pop("aud", None)
+                check_claims.pop("iss", None)
+
             jwt = JWT(
                 jwt=raw_jwt,
                 key=keyset,
