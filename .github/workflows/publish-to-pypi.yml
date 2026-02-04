@@ -6,11 +6,12 @@ permissions:
 on:
   push:
     tags:
-      - '[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.*'
+      - 'v[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.*'
 
 jobs:
   build:
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/authorization_django-v')}}
     name: Build distribution
     runs-on: ubuntu-latest
 
@@ -31,6 +32,7 @@ jobs:
         path: dist/
 
   publish-to-pypi:
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/authorization_django-v')}}
     name: Upload to PyPI
     needs:
       - build
