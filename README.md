@@ -167,13 +167,13 @@ Doing a release
 
 (This is for authorization_django developers.)
 
-We use GitHub pull requests. If your PR should produce a new release of authorization_django, make sure one of the commit increments the version number in setup.cfg appropriately. Then,
+We use GitHub pull requests. If your PR should produce a new release of authorization_django, make sure one of the commits 1) increments the version number in setup.cfg appropriately and 2) adds a description of the release to the changelog below in this README. Then,
 
-* Merge the commit in GitHub, after review;
-* Pull the code from GitHub and merge it into the master branch: `git checkout main && git fetch origin && git merge --ff-only origin/main`
-* Tag the release `vX.Y.Z` with `git tag -a vX.Y.Z -m "Bump to vX.Y.Z"`
-* Push the tag to GitHub with `git push origin --tags`
-* The `publish-to-pypi`-workflow will automatically publish the release
+1. Merge the commit in GitHub, after review;
+2. Pull the code from GitHub and merge it into the master branch: `git checkout main && git fetch origin && git merge --ff-only origin/main`
+3. Tag the release `vX.Y.Z` with `git tag -a vX.Y.Z -m "Bump to vX.Y.Z"`
+4. Push the tag to GitHub with `git push origin --tags`
+5. The `publish-to-pypi`-workflow will automatically publish the release
 
 
 
