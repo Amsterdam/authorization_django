@@ -9,12 +9,12 @@ from base64 import urlsafe_b64encode
 
 import pytest
 from django import conf
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
 
 from authorization_django import authorization_middleware, config, jwks
-from authorization_django.middleware import _AuthorizationError
+from authorization_django.middleware import _AuthorizationError, _InsufficientScopeError
 
 JWKS1 = {
     "keys": [
@@ -97,6 +97,7 @@ TESTSETTINGS = {
         "RS384",
         "RS512",
     ],
+    "EXCEPTION_HANDLER": None,
 }
 
 
@@ -136,6 +137,11 @@ def create_request(tokendata, kid=None, prefix="Bearer", path="/", method="GET")
 
 def create_request_no_auth_header(path="/", method="GET"):
     return RequestFactory().generic(method, path)
+
+
+def custom_handler(exception):
+    if isinstance(exception, _AuthorizationError):
+        return JsonResponse({"message": "Unauthorized"}, status=401)
 
 
 @pytest.fixture
@@ -623,7 +629,7 @@ def test_min_scope_sufficient(tokendata_scope1):
 
 
 def test_min_scope_insufficient():
-    """scope1 is required, request with no token"""
+    """scope1 is required, request with no token and default response"""
     testsettings = TESTSETTINGS.copy()
     testsettings["MIN_SCOPE"] = ("scope1",)
     reload_settings(testsettings)
@@ -807,3 +813,16 @@ def test_protected_route_overruled_error():
     with pytest.raises(config.ProtectedRouteConflictError):
         reload_settings(testsettings)
         authorization_middleware(None)
+
+
+def test_custom_exception():
+    """test custom handler"""
+    testsettings = TESTSETTINGS.copy()
+    testsettings["MIN_SCOPE"] = ("scope1",)
+    testsettings["EXCEPTION_HANDLER"] = custom_handler
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request_no_auth_header()
+    with pytest.raises(_InsufficientScopeError) as e:
+        middleware(request)
+    assert e.value.status_code == 401

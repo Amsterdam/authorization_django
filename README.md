@@ -51,6 +51,8 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | PROTECTED                  | Routes which require scopes for access. Optionally with distinction of methods | empty list                                             |
 | ALWAYS_OK                  | Disable any authorization checks, use only for local development               | False                                                  |
 | ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens                              | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'] |
+| EXCEPTION_HANDLER                  | Custom function to handle a raised exception  function                          | None                                                     |
+
 
 The possible values for `CHECK_CLAIMS` are the RFC 7519 defined claims.
 The relevant values are:
