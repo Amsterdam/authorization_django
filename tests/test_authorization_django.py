@@ -143,6 +143,7 @@ def create_request_no_auth_header(path="/", method="GET"):
 def custom_handler(exception):
     if isinstance(exception, AuthorizationError):
         return JsonResponse({"message": "Unauthorized"}, status=401)
+    return None
 
 
 @pytest.fixture
@@ -615,7 +616,7 @@ def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")
     with pytest.raises(AuthorizationError) as e:
-        middleware(create_request(tokendata_issuer_expired, "4"))
+        middleware(request)
     assert e.value.status_code == 401
 
 
