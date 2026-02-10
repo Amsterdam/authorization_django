@@ -51,6 +51,7 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | PROTECTED                  | Routes which require scopes for access. Optionally with distinction of methods | empty list                                             |
 | ALWAYS_OK                  | Disable any authorization checks, use only for local development               | False                                                  |
 | ALLOWED_SIGNING_ALGORITHMS | List of allowed algorithms for signing web tokens                              | ['ES256', 'ES384', 'ES512', 'RS256', 'RS384', 'RS512'] |
+| EXCEPTION_HANDLER          | Custom function to handle a raised exception  function                         | None                                                   |
 
 The possible values for `CHECK_CLAIMS` are the RFC 7519 defined claims.
 The relevant values are:
@@ -179,6 +180,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+- v2.0.0
+  * Allow for custom (JSON) response after raised exception instead of direct 4** response.
 - v1.8.0
   * Add support for apps that use both Entra ID and Keycloak
 - v1.7.0
