@@ -7,28 +7,22 @@ import json
 import logging
 from time import time
 
-from django import http
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from jwcrypto.common import JWException
 from jwcrypto.jwt import JWT, JWTExpired, JWTMissingKey
 
-from .config import get_settings
-from .jwks import check_update_keyset, get_keyset
 from authorization_django.exceptions import (
+    AuthorizationError,
+    ExpiredTokenError,
     InsufficientScopeError,
     InvalidRequestError,
     InvalidTokenError,
-    ExpiredTokenError,
-    AuthorizationError,
 )
 
+from .config import get_settings
+from .jwks import check_update_keyset, get_keyset
+
 logger = logging.getLogger(__name__)
-
-
-# class _AuthorizationHeaderError(Exception):
-
-#     def __init__(self, response):
-#         self.response = response
 
 
 def authorization_middleware(get_response):
@@ -98,17 +92,16 @@ class AuthorizationMiddleware:
                 response = JsonResponse(payload, status=exception.status_code)
                 if exception.www_authenticate:
                     response["WWW-Authenticate"] = exception.www_authenticate
-                return response
         else:
             msg = 'Bearer realm="datapunt", error={exception.code}'
-            response = http.HttpResponse(exception.message, status=exception.status_code)
+            response = HttpResponse(exception.message, status=exception.status_code)
             response["WWW-Authenticate"] = msg
-            return response
+        return response
 
     def process_exception(self, request, exception):
         settings = get_settings()
         if exception_handler := settings["EXCEPTION_HANDLER"]:
-            exception_handler(
+            return exception_handler(
                 request, exception
             )  # other application takes care of exception handling
         else:
