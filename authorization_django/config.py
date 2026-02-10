@@ -29,6 +29,7 @@ _available_settings = {
     "ALWAYS_OK": False,
     "FORCED_ANONYMOUS_ROUTES": (),
     "MIN_INTERVAL_KEYSET_UPDATE": 30,
+    "EXCEPTION_HANDLER": None,
 }
 
 _methods_valid_options = ["*", "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "TRACE"]

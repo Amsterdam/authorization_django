@@ -9,11 +9,13 @@ from base64 import urlsafe_b64encode
 
 import pytest
 from django import conf
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
 
 from authorization_django import authorization_middleware, config, jwks
+from authorization_django.exceptions import AuthorizationError, InsufficientScopeError
+from authorization_django.middleware import AuthorizationMiddleware
 
 JWKS1 = {
     "keys": [
@@ -96,6 +98,7 @@ TESTSETTINGS = {
         "RS384",
         "RS512",
     ],
+    "EXCEPTION_HANDLER": None,
 }
 
 
@@ -135,6 +138,11 @@ def create_request(tokendata, kid=None, prefix="Bearer", path="/", method="GET")
 
 def create_request_no_auth_header(path="/", method="GET"):
     return RequestFactory().generic(method, path)
+
+
+def custom_handler(exception):
+    if isinstance(exception, AuthorizationError):
+        return JsonResponse({"message": "Unauthorized"}, status=401)
 
 
 @pytest.fixture
@@ -382,11 +390,11 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     - still not recognize the kid
     - respond with an invalid_token response
     """
-    response = middleware(request)
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
     assert requests_mock.call_count == 3
-    assert response.status_code == 401
-    assert "WWW-Authenticate" in response
-    assert "invalid_token" in response["WWW-Authenticate"]
+    assert e.value.status_code == 401
+    assert e.value.code == "invalid_token"
     """
     Mock requests so jwks_url returns JWKS2 and do the same request again.
     The middleware should now:
@@ -446,8 +454,9 @@ def test_entra_id_token_no_aud(middleware, tokendata_entra_id_two_scopes):
     # Remove aud claim
     tokendata_entra_id_two_scopes.pop("aud", None)
     request = create_request(tokendata_entra_id_two_scopes, "1")
-    response = middleware(request)
-    assert response.status_code == 401
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
 
 
 @pytest.mark.xfail(reason="AD Token not supported for now")
@@ -496,18 +505,20 @@ def test_invalid_token_requests(middleware, tokendata_missing_scopes, tokendata_
         create_request(tokendata_two_scopes),  # unsigned token
     )
     for request in reqs:
-        response = middleware(request)
-        assert response.status_code == 401
-        assert "WWW-Authenticate" in response
-        assert "invalid_token" in response["WWW-Authenticate"]
+        with pytest.raises(AuthorizationError) as e:
+            middleware(request)
+        assert e.value.status_code == 401
+        assert e.value.code == "invalid_token"
+        assert e.value.message == "Unauthorized"
+        assert "invalid_token" in e.value.www_authenticate
 
 
 def test_expired_token_request(middleware, tokendata_expired):
-    response = middleware(create_request(tokendata_expired, "4"))
-    assert response.status_code == 401
-    assert "WWW-Authenticate" in response
-    assert "expired_token" in response["WWW-Authenticate"]
-    assert response.content == b"Unauthorized. Token expired."
+    with pytest.raises(AuthorizationError) as e:
+        middleware(create_request(tokendata_expired, "4"))
+    assert e.value.status_code == 401
+    assert e.value.message == "Unauthorized. Token expired."
+    assert "expired_token" in e.value.www_authenticate
 
 
 def test_unknown_kid(tokendata_two_scopes):
@@ -528,10 +539,10 @@ def test_unknown_kid(tokendata_two_scopes):
         }
     )
     middleware = authorization_middleware(_ok_view)
-    response = middleware(request)
-    assert response.status_code == 401
-    assert "WWW-Authenticate" in response
-    assert "invalid_token" in response["WWW-Authenticate"]
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+    assert "invalid_token" in e.value.www_authenticate
 
 
 def test_malformed_requests(middleware, tokendata_two_scopes):
@@ -540,10 +551,11 @@ def test_malformed_requests(middleware, tokendata_two_scopes):
         create_request(tokendata_two_scopes, "2", prefix="Even Worse"),
     )
     for request in reqs:
-        response = middleware(request)
-        assert response.status_code == 400
-        assert "WWW-Authenticate" in response
-        assert "invalid_request" in response["WWW-Authenticate"]
+        with pytest.raises(AuthorizationError) as e:
+            middleware(request)
+        assert e.value.status_code == 400
+        assert "invalid_request" in e.value.www_authenticate
+        assert e.value.message == "Invalid Authorization header format"
 
 
 def test_no_authorization_header(middleware):
@@ -561,8 +573,9 @@ def test_check_missing_iss(tokendata_scope1):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
-    response = middleware(request)
-    assert response.status_code == 401
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
 
 
 @pytest.mark.parametrize(["issuer", "expect_code"], [("NOT_FOOBAR", 401), ("FOOBAR", 200)])
@@ -573,8 +586,12 @@ def test_check_issuer(tokendata_issuer, issuer, expect_code):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer, "4")
-    response = middleware(request)
-    assert response.status_code == expect_code
+    try:
+        response = middleware(request)
+    except AuthorizationError as e:
+        assert e.status_code == expect_code
+    else:
+        assert response.status_code == expect_code
 
 
 def test_check_correct_issuer_expired(tokendata_issuer_expired):
@@ -586,8 +603,9 @@ def test_check_correct_issuer_expired(tokendata_issuer_expired):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")
-    response = middleware(request)
-    assert response.status_code == 401
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
 
 
 def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
@@ -596,8 +614,9 @@ def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")
-    response = middleware(request)
-    assert response.status_code == 401
+    with pytest.raises(AuthorizationError) as e:
+        middleware(create_request(tokendata_issuer_expired, "4"))
+    assert e.value.status_code == 401
 
 
 def test_min_scope_sufficient(tokendata_scope1):
@@ -618,9 +637,36 @@ def test_min_scope_insufficient():
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
-    response = middleware(request)
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+    assert e.value.code == "insufficient_scope"
+
+
+@pytest.mark.parametrize(
+    "request_accepts, expected_response",
+    [
+        (False, JsonResponse),
+        (True, HttpResponse),
+    ],
+)
+def test_min_scope_insufficient_response_type(
+    request_accepts,
+    expected_response,
+):
+    """if request.accepts("text/html"), an HttpResponse should be returned"""
+    testsettings = TESTSETTINGS.copy()
+    testsettings["MIN_SCOPE"] = ("scope1",)
+    reload_settings(testsettings)
+    middleware = AuthorizationMiddleware(_ok_view)
+    request = create_request_no_auth_header()
+    request.accepts = lambda _: request_accepts
+    exception = AuthorizationError(
+        401, "Unauthorized", 'Bearer realm="datapunt", error="insufficient_scope"'
+    )
+    response = middleware.process_exception(request, exception)
     assert response.status_code == 401
-    assert "insufficient_scope" in response["WWW-Authenticate"]
+    assert isinstance(response, expected_response)
 
 
 def test_min_scope_as_string_sufficient(tokendata_scope1):
@@ -641,8 +687,9 @@ def test_min_scope_as_string_insufficient(tokendata_scope1):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
-    response = middleware(request)
-    assert response.status_code == 401
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
 
 
 def test_min_scope_multiple_sufficient(tokendata_two_scopes):
@@ -663,9 +710,10 @@ def test_min_scope_multiple_insufficient(tokendata_scope1):
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
-    response = middleware(request)
-    assert response.status_code == 401
-    assert "insufficient_scope" in response["WWW-Authenticate"]
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+    assert "insufficient_scope" in e.value.www_authenticate
 
 
 def test_forced_anonymous_routes(rf):
@@ -712,9 +760,10 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
 
     # a token with only scope1 does not give access to two_scopes_required route
     request = create_request(tokendata_scope1, "4", "Bearer", "/two_scopes_required", "GET")
-    response = middleware(request)
-    assert response.status_code == 401
-    assert "insufficient_scope" in response["WWW-Authenticate"]
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+    assert "insufficient_scope" in e.value.www_authenticate
 
     # a token with scope1 and scope2 gives access to two_scopes_required route
     request = create_request(tokendata_two_scopes, "4", "Bearer", "/two_scopes_required", "GET")
@@ -741,9 +790,10 @@ def test_protected_resource_read_write_distinction(tokendata_scope1, tokendata_s
     assert response.status_code == 200
 
     request = create_request(tokendata_scope1, "4", "Bearer", "/read_write_distinction", "POST")
-    response = middleware(request)
-    assert response.status_code == 401
-    assert "insufficient_scope" in response["WWW-Authenticate"]
+    with pytest.raises(AuthorizationError) as e:
+        middleware(request)
+    assert e.value.status_code == 401
+    assert "insufficient_scope" in e.value.www_authenticate
 
     request = create_request(tokendata_scope2, "4", "Bearer", "/read_write_distinction", "POST")
     response = middleware(request)
@@ -792,3 +842,16 @@ def test_protected_route_overruled_error():
     with pytest.raises(config.ProtectedRouteConflictError):
         reload_settings(testsettings)
         authorization_middleware(None)
+
+
+def test_custom_exception():
+    """test custom handler"""
+    testsettings = TESTSETTINGS.copy()
+    testsettings["MIN_SCOPE"] = ("scope1",)
+    testsettings["EXCEPTION_HANDLER"] = custom_handler
+    reload_settings(testsettings)
+    middleware = authorization_middleware(_ok_view)
+    request = create_request_no_auth_header()
+    with pytest.raises(InsufficientScopeError) as e:
+        middleware(request)
+    assert e.value.status_code == 401

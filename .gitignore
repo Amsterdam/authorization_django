@@ -15,6 +15,7 @@
 # virtualenv
 .venv
 .python-version
+.envrc
 
 # Pytest coverage
 .coverage
