@@ -44,7 +44,7 @@ class InvalidTokenError(AuthorizationError):
         self,
         status_code=401,
         code="invalid_token",
-        msg="Unauthorized",
+        msg="Unauthorized. Invalid token.",
         www_authenticate='Bearer realm="datapunt", error="invalid_token"',
     ):
         super().__init__(status_code, code, msg, www_authenticate)

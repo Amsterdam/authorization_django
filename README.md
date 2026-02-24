@@ -180,6 +180,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+- v2.0.1
+  * Fix allow custom responses and preserve original responses
 - v2.0.0
   * Allow for custom (JSON) response after raised exception instead of direct 4** response.
 - v1.8.0

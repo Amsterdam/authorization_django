@@ -83,6 +83,11 @@ class AuthorizationMiddleware:
         raise RuntimeError("Should not call is_authorized_for in anonymous routes")
 
     def handle_exception(self, request, exception):
+        settings = get_settings()
+        if exception_handler := settings["EXCEPTION_HANDLER"]:
+            return exception_handler(
+                request, exception
+            )  # other application takes care of exception handling
         if not request.accepts("text/html"):
             if isinstance(exception, AuthorizationError):
                 payload = {
@@ -93,19 +98,11 @@ class AuthorizationMiddleware:
                 if exception.www_authenticate:
                     response["WWW-Authenticate"] = exception.www_authenticate
         else:
-            msg = 'Bearer realm="datapunt", error={exception.code}'
+            msg = f'Bearer realm="datapunt", error={exception.code}'
             response = HttpResponse(exception.message, status=exception.status_code)
             response["WWW-Authenticate"] = msg
-        return response
 
-    def process_exception(self, request, exception):
-        settings = get_settings()
-        if exception_handler := settings["EXCEPTION_HANDLER"]:
-            return exception_handler(
-                request, exception
-            )  # other application takes care of exception handling
-        else:
-            return self.handle_exception(request, exception)
+        return response
 
     def parse_token(self, authz_header):
         """Get the token data present in the given authorization header."""
@@ -265,12 +262,14 @@ class AuthorizationMiddleware:
 
         x_unique_id = request.headers.get("x-unique-id")
         authz_header = request.headers.get("authorization")
+        try:
+            if authz_header:
+                scopes, token_signature, subject, claims = self.parse_token(authz_header)
 
-        if authz_header:
-            scopes, token_signature, subject, claims = self.parse_token(authz_header)
-
-        authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
-        self.handle_scope(authz_func, request)
+            authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
+            self.handle_scope(authz_func, request)
+        except AuthorizationError as e:
+            return self.handle_exception(request, e)
 
         request.is_authorized_for = authz_func
         request.get_token_subject = subject
