@@ -14,8 +14,7 @@ from django.test import RequestFactory
 from jwcrypto.jwt import JWT
 
 from authorization_django import authorization_middleware, config, jwks
-from authorization_django.exceptions import AuthorizationError, InsufficientScopeError
-from authorization_django.middleware import AuthorizationMiddleware
+from authorization_django.exceptions import AuthorizationError
 
 JWKS1 = {
     "keys": [
@@ -804,15 +803,17 @@ def test_protected_route_overruled_error():
 
 
 def test_invalid_request_request_type(middleware, tokendata_expired):
-    """ Assert a json response is returned when settings the accept header"""
+    """Assert a json response is returned when settings the accept header"""
     request = create_request(tokendata_expired, "4")
     request.META["HTTP_ACCEPT"] = "application/json"
     response = middleware(request)
     assert response.status_code == 401
     assert "WWW-Authenticate" in response
     assert "expired_token" in response["WWW-Authenticate"]
-    assert (response.content ==
-            b'{"error": "expired_token", "message": "Unauthorized. Token expired."}')
+    assert (
+        response.content
+        == b'{"error": "expired_token", "message": "Unauthorized. Token expired."}'
+    )
 
 
 def test_custom_exception(middleware):
