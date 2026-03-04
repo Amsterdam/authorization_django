@@ -20,7 +20,7 @@ from authorization_django.exceptions import (
 )
 
 from .config import get_settings
-from .jwks import check_update_keyset, get_keyset
+from .jwks import JWKSWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ class AuthorizationMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
         self.middleware_settings = get_settings()
+        self.jwks = JWKSWrapper()
 
     @staticmethod
     def always_ok(*_args, **_kwargs):
@@ -116,7 +117,7 @@ class AuthorizationMiddleware:
         try:
             jwt = self._decode_token(raw_jwt)
         except JWTMissingKey:
-            check_update_keyset()
+            self.jwks.check_update_keyset()
             try:
                 jwt = self._decode_token(raw_jwt)
             except JWTMissingKey as e:
@@ -132,7 +133,7 @@ class AuthorizationMiddleware:
 
     def _decode_token(self, raw_jwt):
         settings = get_settings()
-        keyset = get_keyset()
+        keyset = self.jwks.keyset
         check_claims = settings["CHECK_CLAIMS"] or None
         if check_claims:
             # Specifying check_claims disables the automatic check on expiry,
