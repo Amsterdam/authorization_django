@@ -13,8 +13,9 @@ from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
 from jwcrypto.jwt import JWT
 
-from authorization_django import authorization_middleware, config, jwks
+from authorization_django import authorization_middleware, config
 from authorization_django.exceptions import AuthorizationError
+from authorization_django.jwks import JWKSWrapper
 
 JWKS1 = {
     "keys": [
@@ -104,11 +105,11 @@ TESTSETTINGS = {
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
     config.init_settings()
-    jwks.init_keyset()
 
 
 def create_token(tokendata, kid, alg):
-    key = jwks.get_keyset().get_key(kid)
+    jwks = JWKSWrapper()
+    key = jwks.keyset.get_key(kid)
     token = JWT(header={"alg": alg, "kid": kid}, claims=tokendata)
     token.make_signed_token(key)
     return token
@@ -370,7 +371,6 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     # Create a request with a token signed with a key from JWKS2
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
     reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
-    assert requests_mock.call_count == 1
     request = create_request(tokendata_two_scopes, "6")
     # Instantiate the middleware with JWKS1
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
@@ -381,7 +381,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
             "MIN_INTERVAL_KEYSET_UPDATE": 0,  # Set update interval to 0 secs for the test
         }
     )
-    assert requests_mock.call_count == 2, requests_mock.request_history
+    assert requests_mock.call_count == 1, requests_mock.request_history
     middleware = authorization_middleware(lambda r: HttpResponse(status=200))
     """
     Process a request with the middleware. The middleware should now:
