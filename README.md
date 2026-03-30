@@ -191,6 +191,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 Changelog
 ---------
 
+* v2.0.3
+  * Bump packages.
 * v2.0.2
   * Ensure thread safety by encapsulating jwks logic in wrapper class.
 * v2.0.1
