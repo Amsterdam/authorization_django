@@ -5,15 +5,15 @@ from setuptools import setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-version = "2.0.3"
+version = "2.0.4"
 packages = [
     "authorization_django",
     "authorization_django.extensions",
 ]
 requires = [
     "Django>=4.2",
-    "requests>=2.33.0",
-    "jwcrypto>=1.5.6",
+    "requests>=2.33.1",
+    "jwcrypto>=1.5.7",
 ]
 tests_require = [
     "pytest>=9.0.2",
