@@ -24,22 +24,23 @@ JWKS1 = {
             "key_ops": ["sign", "verify"],
             "kid": "1",
             "alg": "HS256",
-            "k": "aWFtYXN5bW1ldHJpY2tleQ==",
-        },  # is iamasymmetrickey base64 encoded
+            "k": "aWFtYXN5bW1ldHJpY2tleWZvcmVuY3J5cHRpb25hbmRkZWNyeXB0aW9u",
+        },  # is iamasymmetrickeyforencryptionanddecryption base64 encoded
         {
             "kty": "oct",
             "key_ops": ["sign", "verify"],
             "kid": "2",
             "alg": "HS384",
-            "k": "aWFtYW5vdGhlcnN5bW1ldHJpY2tleQ==",
-        },  # is iamanothersymmetrickey base64 encoded
+            "k": "aWFtYW5vdGhlcnN5bW1ldHJpY2tleWZvcmVuY3J5cHRpb25hbmRkZWNyeXB0aW9u",
+        },  # is iamanothersymmetrickeyforencryptionanddecryption base64 encoded
         {
             "kty": "oct",
             "key_ops": ["sign", "verify"],
             "kid": "3",
             "alg": "HS512",
-            "k": "aWFteWV0YW5vdGhlcnN5bW1ldHJpY2tleQ==",
-        },  # is iamyetanothersymmetrickey base64 encoded
+            "k": "aWFteWV0YW5vdGhlcnN5bW1ldHJpY2tleWZvcmVuY3J5cHRpb25hbmRkZWNyeXB0aW9uYW5kbXVzdGJl"
+            "cmVhbGx5bG9uZw==",
+        },  # is iamyetanothersymmetrickeyforencryptionanddecryptionandmustbereallylong base64 encoded
         {
             "kty": "EC",
             "key_ops": ["sign", "verify"],
