@@ -197,6 +197,17 @@ def tokendata_two_scopes():
 
 
 @pytest.fixture
+def tokendata_account_id():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "scopes": ["scope1", "scope2"],
+        "sub": "ABcD12_Ghi3K",
+    }
+
+
+@pytest.fixture
 def tokendata_two_scopes_aud_iss():
     now = int(time.time())
     return {
@@ -496,6 +507,24 @@ def test_get_token_claims(middleware, tokendata_two_scopes):
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.get_token_claims == tokendata_two_scopes
+
+
+@pytest.mark.parametrize(
+    "name, value, result",
+    [
+        pytest.param(None, None, "ABcD12_Ghi3K", id="sub"),
+        pytest.param("email", "test_email@tester.nl", "test_email@tester.nl", id="email"),
+        pytest.param("upn", "test_upn@tester.nl", "test_upn@tester.nl", id="upn"),
+        pytest.param("appid", "APP-XXX-ID", "APP-XXX-ID", id="appid"),
+    ],
+)
+def test_get_token_account_id(middleware, tokendata_account_id, name, value, result):
+    if name:
+        tokendata_account_id[name] = value
+
+    request = create_request(tokendata_account_id, "4")
+    middleware(request)
+    assert request.account_id == result
 
 
 def test_invalid_token_requests(middleware, tokendata_missing_scopes, tokendata_two_scopes):
