@@ -128,8 +128,24 @@ class AuthorizationMiddleware:
         sub = claims["sub"]
         scopes = claims["scopes"]
         claims = claims["claims"]
+        account_id = self._get_account_id(claims, sub)
         token_signature = raw_jwt.split(".")[2]
-        return scopes, token_signature, sub, claims
+        return scopes, token_signature, sub, claims, account_id
+
+    def _get_account_id(self, claims, sub) -> str:
+        """Extract user email / system app id from whoever made the request"""
+
+        account_id = None
+        if "email" in claims:  # User email in Keycloak tokens
+            account_id = claims["email"]
+        elif "upn" in claims:  # User email in Entra ID tokens
+            account_id = claims["upn"]
+        elif "appid" in claims:  # Appid for Entra ID system accounts
+            account_id = claims["appid"]
+        # If none of the above, fall back to token subject
+        else:
+            account_id = sub
+        return account_id
 
     def _decode_token(self, raw_jwt):
         settings = get_settings()
@@ -260,12 +276,15 @@ class AuthorizationMiddleware:
         token_signature = ""
         subject = None
         claims = None
+        account_id = None
 
         x_unique_id = request.headers.get("x-unique-id")
         authz_header = request.headers.get("authorization")
         try:
             if authz_header:
-                scopes, token_signature, subject, claims = self.parse_token(authz_header)
+                scopes, token_signature, subject, claims, account_id = self.parse_token(
+                    authz_header
+                )
 
             authz_func = self.authorize_function(scopes, token_signature, x_unique_id)
             self.handle_scope(authz_func, request)
@@ -276,6 +295,7 @@ class AuthorizationMiddleware:
         request.get_token_subject = subject
         request.get_token_scopes = scopes
         request.get_token_claims = claims
+        request.account_id = account_id
         return self.get_response(request)
 
 
