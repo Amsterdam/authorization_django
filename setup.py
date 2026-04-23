@@ -5,7 +5,7 @@ from setuptools import setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-version = "2.0.4"
+version = "2.1.0"
 packages = [
     "authorization_django",
     "authorization_django.extensions",

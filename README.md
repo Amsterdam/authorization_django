@@ -190,7 +190,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
-
+* v2.1.0
+  * Add account_id from the user to the request.
 * v2.0.4
   * Bump packages.
 * v2.0.3
