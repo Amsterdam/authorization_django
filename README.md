@@ -1,7 +1,7 @@
 Datapunt Django Authorization
 =============================
 
-![python 3.4 onward](https://img.shields.io/badge/python-3.4%2C%203.5%2C%203.6-blue.svg)
+![python 3.10 onward](https://img.shields.io/badge/python-3.10%2C%203.11%2C%203.12%2C%203.13%2C%203.14-blue.svg)
 ![Mozilla Public License Version 2.0](https://img.shields.io/badge/license-MPLv2.0-blue.svg)
 
 Django middleware that adds functionality to check authorization, based on JSON Web Tokens.
