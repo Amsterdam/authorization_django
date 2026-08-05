@@ -5,25 +5,25 @@ from setuptools import setup
 with open("README.md", encoding="utf-8") as f:
     long_description = f.read()
 
-version = "2.1.0"
+version = "2.1.1"
 packages = [
     "authorization_django",
     "authorization_django.extensions",
 ]
 requires = [
     "Django>=4.2",
-    "requests>=2.33.1",
-    "jwcrypto>=1.5.7",
+    "requests>=2.34.2",
+    "jwcrypto>=1.5.8",
 ]
 tests_require = [
-    "pytest>=9.0.2",
+    "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "pytest-django>=4.12.0",
     "requests_mock",
 ]
 extended_require = [
-    "djangorestframework>=3.17.1",
-    "drf-spectacular>=0.29.0",
+    "djangorestframework>=3.17.2",
+    "drf-spectacular>=0.30.0",
 ]
 
 setup(
