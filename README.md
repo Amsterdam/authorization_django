@@ -163,10 +163,11 @@ class CustomAPIView(APIView):
 Contribute
 ----------
 
-Activate your virtualenv, install the egg in `editable` mode, and start coding:
+Create a uv-managed environment, install the project with the optional development
+dependencies, and start coding:
 
 ```
-pip install -e .[extended]
+uv sync --extra extended
 ```
 
 Testing:
@@ -180,7 +181,7 @@ Doing a release
 
 (This is for authorization_django developers.)
 
-We use GitHub pull requests. If your PR should produce a new release of authorization_django, make sure one of the commits 1) increments the version number in setup.cfg appropriately and 2) adds a description of the release to the changelog below in this README. Then,
+We use GitHub pull requests. If your PR should produce a new release of authorization_django, make sure one of the commits 1) increments the version number in pyproject.toml appropriately and 2) adds a description of the release to the changelog below in this README. Then,
 
 1. Merge the commit in GitHub, after review;
 2. Pull the code from GitHub and merge it into the master branch: `git checkout main && git fetch origin && git merge --ff-only origin/main`
@@ -190,6 +191,9 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v2.2.0
+  * Update toolchain to use uv.
+  * Added failunder for test coverage.
 * v2.1.1
   * Bump packages.
 * v2.1.0
