@@ -5,12 +5,12 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
     groups:
-      pip-minor-and-patch:
+      uv-minor-and-patch:
         applies-to: version-updates
         update-types:
         - "minor"
