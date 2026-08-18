@@ -62,14 +62,21 @@ pythonpath = "."
 testpaths = ["tests"]
 addopts = [
     "--strict-markers",
-    "--ds=tests.settings"
+    "--ds=tests.settings",
+    "--cov=authorization_django",
+    "--cov-report=term",
+    "--cov-fail-under=83",
 ]
 
 # ==== Coverage ====
 [tool.coverage.run]
 branch = true
 source = ["authorization_django"]
-omit = ["*/migrations/*.py", "*/test*.py", "*/tests/*"]
+omit = [
+    "*/migrations/*.py",
+    "*/test*.py",
+    "*/tests/*",
+]
 #plugins = ["django_coverage_plugin"]
 
 

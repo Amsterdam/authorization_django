@@ -16,4 +16,4 @@ test:
 	uv run pytest -p no:cacheprovider --verbose --capture=no .
 
 coverage:
-	uv runpytest -p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no .
+	uv run pytest -p no:cacheprovider --verbose --cov-report=term-missing --capture=no .
