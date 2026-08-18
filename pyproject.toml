@@ -48,6 +48,18 @@ extended = [
     "requests_mock==1.12.1",
 ]
 
+[dependency-groups]
+django42 = ["Django~=4.2"]
+django52 = ["Django~=5.2"]
+
+[tool.uv]
+conflicts = [
+    [
+        { group = "django42" },
+        { group = "django52" },
+    ],
+]
+
 [tool.uv.build-backend]
 module-name = "authorization_django"
 module-root = ""
