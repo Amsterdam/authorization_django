@@ -3,16 +3,17 @@
 PYTHON = python3
 
 release: test
-	$(PYTHON) setup.py sdist upload
+	uv build
+	uv publish
 
 dist:
-	$(PYTHON) setup.py sdist
+	uv build
 
 build:
-	$(PYTHON) setup.py build
+	uv build
 
 test:
-	pytest -p no:cacheprovider --verbose --capture=no .
+	uv run pytest -p no:cacheprovider --verbose --capture=no .
 
 coverage:
-	pytest -p no:cacheprovider --verbose --cov=authorization_django --cov-report=term --cov-config .coveragerc --capture=no .
+	uv run pytest -p no:cacheprovider --verbose --cov-report=term-missing --capture=no .

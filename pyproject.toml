@@ -1,3 +1,70 @@
+[build-system]
+requires = ["uv_build>=0.8.13,<0.9"]
+build-backend = "uv_build"
+
+[project]
+name = "datapunt-authorization-django"
+version = "2.2.0"
+description = "Datapunt authorization check for Django"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MPL-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Amsterdam Datapunt", email = "datapunt@amsterdam.nl" }]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Topic :: System :: Systems Administration :: Authentication/Directory",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "django>=4.2",
+    "requests>=2.34.2",
+    "jwcrypto>=1.5.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/Amsterdam/authorization_django"
+
+[project.optional-dependencies]
+tests = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-django==4.12.0",
+    "requests_mock==1.12.1",
+]
+extended = [
+    "djangorestframework==3.17.2",
+    "drf-spectacular==0.30.0",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "pytest-django==4.12.0",
+    "requests_mock==1.12.1",
+]
+
+[dependency-groups]
+django42 = ["Django~=4.2"]
+django52 = ["Django~=5.2"]
+
+[tool.uv]
+conflicts = [
+    [
+        { group = "django42" },
+        { group = "django52" },
+    ],
+]
+
+[tool.uv.build-backend]
+module-name = "authorization_django"
+module-root = ""
+source-include = ["tests/**"]
+
 # ==== pytest ====
 [tool.pytest.ini_options]
 xfail_strict = true
@@ -7,21 +74,23 @@ pythonpath = "."
 testpaths = ["tests"]
 addopts = [
     "--strict-markers",
-    "--ds=tests.settings"
+    "--ds=tests.settings",
+    "--cov=authorization_django",
+    "--cov-report=term",
+    "--cov-fail-under=83",
 ]
 
 # ==== Coverage ====
 [tool.coverage.run]
 branch = true
 source = ["authorization_django"]
-omit = ["*/migrations/*.py", "*/test*.py", "*/tests/*"]
+omit = [
+    "*/migrations/*.py",
+    "*/test*.py",
+    "*/tests/*",
+]
 #plugins = ["django_coverage_plugin"]
 
-
-# ==== black ====
-[tool.black]
-line-length = 99
-target-version = ["py39"]
 
 # ==== ruff ====
 [tool.ruff]

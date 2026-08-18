@@ -1,5 +1,4 @@
 class AuthorizationError(Exception):
-
     def __init__(
         self,
         status_code,
@@ -15,7 +14,6 @@ class AuthorizationError(Exception):
 
 
 class InsufficientScopeError(AuthorizationError):
-
     def __init__(
         self,
         status_code=401,
@@ -27,7 +25,6 @@ class InsufficientScopeError(AuthorizationError):
 
 
 class ExpiredTokenError(AuthorizationError):
-
     def __init__(
         self,
         status_code=401,
@@ -39,7 +36,6 @@ class ExpiredTokenError(AuthorizationError):
 
 
 class InvalidTokenError(AuthorizationError):
-
     def __init__(
         self,
         status_code=401,
@@ -51,7 +47,6 @@ class InvalidTokenError(AuthorizationError):
 
 
 class InvalidRequestError(AuthorizationError):
-
     def __init__(
         self,
         status_code=400,
