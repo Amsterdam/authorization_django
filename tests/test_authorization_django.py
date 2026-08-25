@@ -100,6 +100,7 @@ TESTSETTINGS = {
         "RS512",
     ],
     "EXCEPTION_HANDLER": None,
+    "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
 }
 
 
@@ -150,7 +151,7 @@ def custom_handler(request, exception):
 @pytest.fixture
 def tokendata_missing_scopes():
     now = int(time.time())
-    return {"exp": now + 30}
+    return {"exp": now + 30, "aud": "aud", "iss": "iss"}
 
 
 @pytest.fixture
@@ -160,6 +161,8 @@ def tokendata_expired():
         "iat": now,
         "exp": now - 100,  # 60 second leeway allowed
         "scopes": ["scope1"],
+        "aud": "aud",
+        "iss": "iss",
     }
 
 
@@ -171,6 +174,8 @@ def tokendata_scope1():
         "exp": now + 30,
         "scopes": ["scope1"],
         "sub": "test@tester.nl",
+        "aud": "aud",
+        "iss": "iss",
     }
 
 
@@ -182,33 +187,13 @@ def tokendata_scope2():
         "exp": now + 30,
         "scopes": ["scope2"],
         "sub": "test@tester.nl",
+        "aud": "aud",
+        "iss": "iss",
     }
 
 
 @pytest.fixture
 def tokendata_two_scopes():
-    now = int(time.time())
-    return {
-        "iat": now,
-        "exp": now + 30,
-        "scopes": ["scope1", "scope2"],
-        "sub": "test@tester.nl",
-    }
-
-
-@pytest.fixture
-def tokendata_account_id():
-    now = int(time.time())
-    return {
-        "iat": now,
-        "exp": now + 30,
-        "scopes": ["scope1", "scope2"],
-        "sub": "ABcD12_Ghi3K",
-    }
-
-
-@pytest.fixture
-def tokendata_two_scopes_aud_iss():
     now = int(time.time())
     return {
         "iat": now,
@@ -221,6 +206,30 @@ def tokendata_two_scopes_aud_iss():
 
 
 @pytest.fixture
+def tokendata_account_id():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "scopes": ["scope1", "scope2"],
+        "sub": "ABcD12_Ghi3K",
+        "aud": "aud",
+        "iss": "iss",
+    }
+
+
+@pytest.fixture
+def tokendata_two_scopes_no_aud_iss():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "scopes": ["scope1", "scope2"],
+        "sub": "test@tester.nl",
+    }
+
+
+@pytest.fixture
 def tokendata_zero_scopes():
     now = int(time.time())
     return {
@@ -228,6 +237,8 @@ def tokendata_zero_scopes():
         "exp": now + 30,
         "scopes": [],
         "sub": "test@tester.nl",
+        "aud": "aud",
+        "iss": "iss",
     }
 
 
@@ -239,6 +250,8 @@ def tokendata_azure_ad_two_scopes():
         "exp": now + 30,
         "groups": ["test\\scope_1", "test\\scope_2"],
         "unique_name": "test@tester.nl",
+        "aud": "aud",
+        "iss": "iss",
     }
 
 
@@ -263,6 +276,7 @@ def tokendata_keycloak_two_scopes():
         "iat": now,
         "exp": now + 30,
         "iss": "https://iam.amsterdam.nl",
+        "aud": "aud",
         "realm_access": {"roles": ["scope_1", "scope_2"]},
         "sub": "test@tester.nl",
     }
@@ -313,20 +327,43 @@ def test_bad_jwks():
         authorization_middleware(None)
 
 
+def test_no_check_claims():
+    with pytest.raises(config.AuthzConfigurationError):
+        testsettings = TESTSETTINGS.copy()
+        testsettings["CHECK_CLAIMS"] = {}
+        reload_settings(testsettings)
+        authorization_middleware(None)
+
+
 def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     """Verify that loading keyset from url works, by checking that is_authorized_for
     method correctly evaluates that user has the scopes mentioned in the token data
     """
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
+    reload_settings(
+        {"JWKS": None, "JWKS_URL": jwks_url, "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}}
+    )
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
 
 
-def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss):
+def test_jwks_from_url_fails_no_aud_iss(requests_mock, tokendata_two_scopes_no_aud_iss):
+    """Verify that token without aud and iss claims is not valid."""
+    jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {"JWKS": None, "JWKS_URL": jwks_url, "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}}
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes_no_aud_iss, "4")
+    response = middleware(request)
+    assert response.status_code == 401
+
+
+def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes):
     """Verify that loading keyset from entra url works,
     by checking that aud and iss claims are present
     and is_authorized_for method correctly evaluates
@@ -338,7 +375,7 @@ def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss
         {"JWKS": None, "JWKS_URL": jwks_url, "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}}
     )
     middleware = authorization_middleware(_ok_view)
-    request = create_request(tokendata_two_scopes_aud_iss, "4")
+    request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
 
@@ -350,10 +387,13 @@ def test_jwks_from_url_entra_error(requests_mock):
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     with pytest.raises(config.AuthzConfigurationError) as excinfo:
         reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
-    assert "When using Microsoft Entra ID" in str(excinfo.value)
+    assert (
+        "DATAPUNT_AUTHZ['CHECK_CLAIMS'] must be set for at least 1 authorization issuer."
+        in str(excinfo.value)
+    )
 
 
-def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
+def test_jwks_from_url_list(requests_mock, tokendata_two_scopes):
     """Verify that loading keyset from url list (with Keycloak and Entra keysets) works, by checking that is_authorized_for
     method correctly evaluates that user has the scopes mentioned in the token data.
     """
@@ -365,13 +405,86 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
         {
             "JWKS": None,
             "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
+            "CHECK_CLAIMS_EXTRA": {"aud": "aud_false", "iss": "iss_false"},
             "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
         }
     )
     middleware = authorization_middleware(_ok_view)
-    request = create_request(tokendata_two_scopes_aud_iss, "4")
+    request = create_request(tokendata_two_scopes, "4")
     middleware(request)
     assert request.is_authorized_for("scope1", "scope2")
+
+
+def test_two_auth_providers_check_claims(requests_mock, tokendata_two_scopes):
+    """
+    Verify that configuring two auth providers (with Keycloak and Entra keysets) works, by checking that is_authorized_for
+    method correctly evaluates that user has the scopes mentioned in the token data.
+    Correct claims are in CHECK_CLAIMS parameter.
+    """
+    kc_jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
+    requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
+            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
+            "CHECK_CLAIMS_EXTRA": {"aud": "aud_false", "iss": "iss_false"},
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes, "4")
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+
+def test_two_auth_providers_check_claims_extra(requests_mock, tokendata_two_scopes):
+    """
+    Verify that configuring two auth providers (with Keycloak and Entra keysets) works, by checking that is_authorized_for
+    method correctly evaluates that user has the scopes mentioned in the token data.
+    Correct claims are in CHECK_CLAIMS parameter.
+    """
+    kc_jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
+    requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
+            "CHECK_CLAIMS": {"aud": "aud_false", "iss": "iss_false"},
+            "CHECK_CLAIMS_EXTRA": {"aud": "aud", "iss": "iss"},
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes, "4")
+    middleware(request)
+    assert request.is_authorized_for("scope1", "scope2")
+
+
+def test_two_auth_providers_all_wrong(requests_mock, tokendata_two_scopes):
+    """
+    Verify that configuring two auth providers (with Keycloak and Entra keysets) works, by checking that is_authorized_for
+    method correctly evaluates that user has the scopes mentioned in the token data.
+    Correct claims are in CHECK_CLAIMS parameter.
+    """
+    kc_jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
+    entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
+    requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
+            "CHECK_CLAIMS": {"aud": "aud_false", "iss": "iss_false"},
+            "CHECK_CLAIMS_EXTRA": {"aud": "aud_incorrect", "iss": "iss_incorrect"},
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes, "4")
+    response = middleware(request)
+    assert response.status_code == 401
 
 
 def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
@@ -382,7 +495,13 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
 
     # Create a request with a token signed with a key from JWKS2
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
-    reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URL": jwks_url,
+            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
+        }
+    )
     request = create_request(tokendata_two_scopes, "6")
     # Instantiate the middleware with JWKS1
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
@@ -390,7 +509,8 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
         {
             "JWKS": None,
             "JWKS_URL": jwks_url,
-            "MIN_INTERVAL_KEYSET_UPDATE": 0,  # Set update interval to 0 secs for the test
+            "MIN_INTERVAL_KEYSET_UPDATE": 0,  # Set update interval to 0 secs for the test,
+            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
         }
     )
     assert requests_mock.call_count == 1, requests_mock.request_history
@@ -427,6 +547,9 @@ def test_hmac_keys_valid(middleware, tokendata_two_scopes):
 
 
 def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
+    testsettings = TESTSETTINGS.copy()
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl"}
+    reload_settings(testsettings)
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware(request)
 
@@ -552,18 +675,10 @@ def test_unknown_kid(tokendata_two_scopes):
     Verify that a token signed with an unknown key results in an "invalid_token" response
     """
     # Create a request with a token signed with a key from JWKS2
-    reload_settings(
-        {
-            "JWKS": json.dumps(JWKS2),
-        }
-    )
+    reload_settings({"JWKS": json.dumps(JWKS2), "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}})
     request = create_request(tokendata_two_scopes, "6")
     # Instantiate the middleware with JWKS1
-    reload_settings(
-        {
-            "JWKS": json.dumps(JWKS1),
-        }
-    )
+    reload_settings({"JWKS": json.dumps(JWKS1), "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}})
     middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert response.status_code == 401
@@ -595,9 +710,9 @@ def test_no_authorization_header(middleware):
 def test_check_missing_iss(tokendata_scope1):
     """Enforce claim checks"""
     testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
+    tokendata_scope1.pop("iss")
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
     assert response.status_code == 401
@@ -621,16 +736,6 @@ def test_check_correct_issuer_expired(tokendata_issuer_expired):
     """
     testsettings = TESTSETTINGS.copy()
     testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
-    reload_settings(testsettings)
-    middleware = authorization_middleware(_ok_view)
-    request = create_request(tokendata_issuer_expired, "4")
-    response = middleware(request)
-    assert response.status_code == 401
-
-
-def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
-    """ """
-    testsettings = TESTSETTINGS.copy()
     reload_settings(testsettings)
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")

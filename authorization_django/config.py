@@ -24,6 +24,7 @@ _available_settings = {
         "RS512",
     ],
     "CHECK_CLAIMS": {},
+    "CHECK_CLAIMS_EXTRA": {},
     "MIN_SCOPE": (),
     "PROTECTED": [],
     "ALWAYS_OK": False,
@@ -101,18 +102,20 @@ def _validate_values(user_settings: dict):
             f"{_settings_key}['JWKS'], {_settings_key}['JWKS_URL'] or {_settings_key}['JWKS_URLS']  must be set, or all"
         )
 
-    is_entra = (
-        user_settings["JWKS_URL"]
-        and user_settings["JWKS_URL"].startswith("https://login.microsoftonline.com/")
-    ) or any(
-        url.startswith("https://login.microsoftonline.com/") for url in user_settings["JWKS_URLS"]
-    )
-    if is_entra and {"iss", "aud"}.isdisjoint(user_settings["CHECK_CLAIMS"]):
-        # As tokens handed out by Entra ID can come from other instances,
-        # checking the issuer and audience is super important!
+    if not user_settings["CHECK_CLAIMS"] and not user_settings["CHECK_CLAIMS_EXTRA"]:
         raise AuthzConfigurationError(
-            "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim"
-            f" in the {_settings_key}['CHECK_CLAIMS'] setting"
+            f"{_settings_key}['CHECK_CLAIMS'] must be set for at least 1 authorization issuer."
+        )
+
+    # TODO: iss moet verplicht zijn, aud bij Keycloak alleen als er resource access nodig (ipv realm access)
+    # aud en iss zijn beide verplicht bij entra
+    if {"iss", "aud"}.isdisjoint(user_settings["CHECK_CLAIMS"]) and {"iss", "aud"}.isdisjoint(
+        user_settings["CHECK_CLAIMS_EXTRA"]
+    ):
+        # Checking the issuer and audience is super important!
+        raise AuthzConfigurationError(
+            "Make sure to set an 'iss' and 'aud' claim"
+            f" in the {_settings_key}['CHECK_CLAIMS'] or {_settings_key}['CHECK_CLAIMS_EXTRA'] setting"
         )
 
     if isinstance(user_settings["MIN_SCOPE"], str):

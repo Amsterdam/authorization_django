@@ -147,28 +147,15 @@ class AuthorizationMiddleware:
             account_id = sub
         return account_id
 
-    def _decode_token(self, raw_jwt):
+    def _decode_token(self, raw_jwt, check_claims=None):
         settings = get_settings()
         keyset = self.jwks.keyset
-        check_claims = settings["CHECK_CLAIMS"] or None
-        if check_claims:
-            # Specifying check_claims disables the automatic check on expiry,
-            # so that needs to be explicitly added now.
-            check_claims = {**check_claims, "exp": int(time())}
+        if not check_claims:
+            check_claims = settings["CHECK_CLAIMS"]
+
+        # Check on expiry needs to be explicitly added when using check_claims
+        check_claims = {**check_claims, "exp": int(time())}
         try:
-            jwt = JWT(
-                jwt=raw_jwt,
-                key=keyset,
-                algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
-            )
-
-            # Keycloak provides no aud claim
-            claims = json.loads(jwt.claims)
-            iss = claims.get("iss", None)
-            if check_claims and iss and iss.startswith("https://iam.amsterdam.nl"):
-                check_claims.pop("aud", None)
-                check_claims.pop("iss", None)
-
             jwt = JWT(
                 jwt=raw_jwt,
                 key=keyset,
@@ -181,6 +168,30 @@ class AuthorizationMiddleware:
         except JWTMissingKey:
             raise  # for parse_token() to handle
         except (JWException, ValueError) as e:
+            logger.warning("API authz problem: %s", e)
+
+            # Try the extra check_claims set, if provided
+            if check_claims_extra := settings["CHECK_CLAIMS_EXTRA"]:
+                # Check on expiry needs to be explicitly added when using check_claims
+                check_claims_extra = {**check_claims_extra, "exp": int(time())}
+                try:
+                    jwt = JWT(
+                        jwt=raw_jwt,
+                        key=keyset,
+                        algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
+                        check_claims=check_claims_extra,
+                    )
+                except JWTExpired as e:
+                    logger.info("API authz problem: token expired %s", raw_jwt)
+                    raise ExpiredTokenError from e
+                except JWTMissingKey:
+                    raise  # for parse_token() to handle
+                except (JWException, ValueError) as e:
+                    # invalid signature, invalid claim, missing claim
+                    logger.warning("API authz problem: %s", e)
+                    raise InvalidTokenError from e
+                return jwt
+
             # invalid signature, invalid claim, missing claim
             logger.warning("API authz problem: %s", e)
             raise InvalidTokenError from e

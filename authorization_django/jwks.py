@@ -31,12 +31,13 @@ class JWKSWrapper:
         if self._settings.get("JWKS"):
             _load_jwks(self._keyset, self._settings["JWKS"])
 
-        if self._settings.get("JWKS_URL"):
-            _load_jwks_from_url(self._keyset, self._settings["JWKS_URL"])
-
         if self._settings.get("JWKS_URLS"):
             for url in self._settings["JWKS_URLS"]:
                 _load_jwks_from_url(self._keyset, url)
+
+        # If JWKS_URLS is configured, don't also load JWKS_URL
+        elif self._settings.get("JWKS_URL"):
+            _load_jwks_from_url(self._keyset, self._settings["JWKS_URL"])
 
         if len(self._keyset["keys"]) == 0:
             raise AuthzConfigurationError("No keys loaded!")
