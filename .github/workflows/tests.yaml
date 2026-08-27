@@ -18,22 +18,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Django 4.2
-          - django: "4.2"
-            django_group: "django42"
-            python: "3.10"
-          - django: "4.2"
-            django_group: "django42"
-            python: "3.11"
-          # Django 5.2
           - django: "5.2"
-            django_group: "django52"
+            python: "3.10"
+          - django: "5.2"
+            python: "3.11"
+          - django: "5.2"
             python: "3.12"
           - django: "5.2"
-            django_group: "django52"
             python: "3.13"
           - django: "5.2"
-            django_group: "django52"
             python: "3.14"
 
     steps:
@@ -46,7 +39,7 @@ jobs:
 
       - name: Install Packages
         run: |
-          uv sync --python ${{ matrix.python }} --extra tests --group ${{ matrix.django_group }} --no-default-groups
+          uv sync --python ${{ matrix.python }} --extra tests --no-default-groups
 
       - name: Run Tests
         run: |
