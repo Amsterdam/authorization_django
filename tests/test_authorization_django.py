@@ -262,7 +262,7 @@ def tokendata_keycloak_two_scopes():
     return {
         "iat": now,
         "exp": now + 30,
-        "iss": "https://iam.amsterdam.nl",
+        "iss": "https://iam.amsterdam.nl/",
         "realm_access": {"roles": ["scope_1", "scope_2"]},
         "sub": "test@tester.nl",
     }
@@ -436,7 +436,7 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
 
 def test_keycloak_token_check_claims(middleware, tokendata_keycloak_two_scopes):
     testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl"}
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl/"}
     reload_settings(testsettings)
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware(request)

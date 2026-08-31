@@ -165,7 +165,7 @@ class AuthorizationMiddleware:
             # Keycloak provides no aud claim
             claims = json.loads(jwt.claims)
             iss = claims.get("iss", None)
-            if check_claims and iss and iss.startswith("https://iam.amsterdam.nl"):
+            if check_claims and iss and iss.startswith("https://iam.amsterdam.nl/"):
                 check_claims.pop("aud", None)
                 check_claims.pop("iss", None)
 
