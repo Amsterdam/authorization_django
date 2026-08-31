@@ -43,9 +43,10 @@ your ``settings.py`` in the ``DATAPUNT_AUTHZ`` dictionary.
 | Setting                    | Description                                                                    | Default value                                          |
 |----------------------------|--------------------------------------------------------------------------------|--------------------------------------------------------|
 | JWKS                       | A valid JWKS as json, to validate tokens. See RFC 7517 and 7518 for details    | ""                                                     |
-| JWKS_URL                   | A url to a valid JWKS, to validate tokens                                      | ""                                                     |
-| JWKS_URLS                  | A list of URLs to a valid JWKS, to validate tokens                             | ""                                                     |
-| CHECK_CLAIMS               | Which claims to check, e.g. `{"iss": "...", "aud": "..."}`                     | {}                                                     |
+| JWKS_URL                   | A url to a valid JWKS, to validate tokens (deprecated in v3.0)                 | ""                                                     |
+| JWKS_URLS                  | A list of URLs to a valid JWKS, to validate tokens (deprecated in v3.0)        | ""                                                     |
+| CHECK_CLAIMS               | Which claims to check, e.g. `{"iss": "...", "aud": "..."}` (deprecated in v3.0)| {}                                                     |
+| TRUSTED_JWKS               | A list of objects containing URLS and their associated claims                  | empty list                                             |
 | MIN_INTERVAL_KEYSET_UPDATE | Minimal interval in secs between two checks for keyset update                  | 30                                                     |
 | MIN_SCOPE                  | Minimum needed scope(s) to view non-whitelisted urls                           | empty tuple                                            |
 | FORCED_ANONYMOUS_ROUTES    | Routes for which not to check for authorization (whitelist)                    | empty tuple                                            |
@@ -59,6 +60,17 @@ The relevant values are:
 
 * **iss** (`str` issuer): Identifies the principal that issued the token.
 * **aud** (`str`/`list` audience): Identifies the intended audience. This can be a list too.
+
+The items in `TRUSTED_JWKS` should have the following shape:
+
+{
+  "jwks_url": "https://...",
+  "claims": {
+    "iss": "issuer",
+    "aud": "audience"
+  },
+  "aud_required": "always" | "never" | "resource_access" | "realm_access"
+}
 
 Usage
 -----
