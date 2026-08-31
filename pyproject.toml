@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "datapunt-authorization-django"
-version = "2.2.0"
+version = "2.3.0"
 description = "Datapunt authorization check for Django"
 readme = "README.md"
 requires-python = ">=3.10"

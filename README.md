@@ -203,6 +203,10 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v2.3.0
+  * Tighten check for correct keycloak instance.
+  * Add TRUSTED_JWKS config that takes precedence over JWKS_URL(S)/CHECK_CLAIMS + deprecationwarnings.
+  * Drop support for Django 4.2 as it is EOL.
 * v2.2.0
   * Update toolchain to use uv.
   * Added failunder for test coverage.
