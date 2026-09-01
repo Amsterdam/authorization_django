@@ -5,7 +5,6 @@ authorization_middleware.config
 
 import logging
 from collections.abc import Callable, Iterator, Mapping
-from typing import Literal
 
 from django.conf import settings as django_settings
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
@@ -24,21 +23,18 @@ class TrustedJwksItem(BaseModel):
     jwks_url: str | None = None
     jwks: dict | None = None
     claims: Claims
-    aud_required: Literal["always", "never", "resource_access", "realm_access", "if_present"] = (
-        "always"
-    )
 
     @model_validator(mode="after")
-    def validate_aud_required(self):
-        if self.aud_required != "never" and self.claims.aud is None:
-            raise ValueError("aud claim is required when aud_required is not 'never'")
+    def validate(self):
         if not self.jwks_url and not self.jwks:
-            raise ValueError("Either jwks_url or jwks must be provided")
+            raise AuthzConfigurationError("Either jwks_url or jwks must be provided")
         if self.jwks_url and self.jwks:
-            raise ValueError("Provide either jwks_url or jwks, not both")
-        if self.jwks_url and self.jwks_url.startswith(MICROSOFT) and self.aud_required != "always":
-            raise ValueError("aud_required must be 'always' for Microsoft EntraID.")
-
+            raise AuthzConfigurationError("Provide either jwks_url or jwks, not both")
+        if self.jwks_url and self.jwks_url.startswith(MICROSOFT) and not self.claims.aud:
+            raise AuthzConfigurationError(
+                "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim"
+                f" in the {SETTINGS_KEY}['TRUSTED_JWKS'] settings for entra."
+            )
         return self
 
 
@@ -117,9 +113,10 @@ class Settings(BaseModel):
 
     @property
     def effective_jwks_url(self):
-        if self.TRUSTED_JWKS:
-            return self.TRUSTED_JWKS[0].jwks_url or self.JWKS_URL
-        return self.JWKS_URL
+        try:
+            return next(item.jwks_url for item in self.TRUSTED_JWKS if item.jwks_url)
+        except StopIteration:
+            return self.JWKS_URL
 
     @property
     def effective_jwks_urls(self):
@@ -132,7 +129,7 @@ class Settings(BaseModel):
     @property
     def effective_check_claims(self):
         for item in self.TRUSTED_JWKS:
-            if item.aud_required == "always":
+            if item.claims:
                 return item.claims.model_dump(exclude_none=True)
         return self.CHECK_CLAIMS
 
@@ -164,12 +161,8 @@ class Settings(BaseModel):
             )
 
         is_entra = (
-            self.effective_jwks_url
-            and self.effective_jwks_url.startswith("https://login.microsoftonline.com/")
-        ) or any(
-            url.startswith("https://login.microsoftonline.com/")
-            for url in self.effective_jwks_urls
-        )
+            self.effective_jwks_url and self.effective_jwks_url.startswith(MICROSOFT)
+        ) or any(url.startswith(MICROSOFT) for url in self.effective_jwks_urls)
         if is_entra and {"iss", "aud"}.isdisjoint(self.effective_check_claims):
             raise AuthzConfigurationError(
                 "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim"
@@ -249,22 +242,20 @@ class SettingsProxy(Mapping):
 
     def _compose_trusted_jwks(self):
         trusted_jwks = []
+        check_claims = self._values.get("CHECK_CLAIMS")
+        check_claims_no_aud = {k: v for k, v in (check_claims or {}).items() if k != "aud"}
         if self._values["JWKS"]:
             trusted_jwks.append(
                 {
                     "jwks": self._values["JWKS"],
-                    "claims": self._values.get("CHECK_CLAIMS"),
-                    "aud_required": "never",
+                    "claims": check_claims_no_aud,
                 }
             )
         if self._values["JWKS_URLS"]:
             trusted_jwks.extend(
                 {
                     "jwks_url": url,
-                    "claims": self._values.get("CHECK_CLAIMS")
-                    if url.startswith(MICROSOFT)
-                    else {},
-                    "aud_required": "always" if url.startswith(MICROSOFT) else "never",
+                    "claims": check_claims if url.startswith(MICROSOFT) else check_claims_no_aud,
                 }
                 for url in self._values["JWKS_URLS"]
             )
@@ -272,10 +263,9 @@ class SettingsProxy(Mapping):
             trusted_jwks.append(
                 {
                     "jwks_url": self._values["JWKS_URL"],
-                    "claims": self._values.get("CHECK_CLAIMS"),
-                    "aud_required": "always"
+                    "claims": check_claims
                     if self._values["JWKS_URL"].startswith(MICROSOFT)
-                    else "never",
+                    else check_claims_no_aud,
                 }
             )
         return trusted_jwks
@@ -304,10 +294,10 @@ class SettingsProxy(Mapping):
             return [item["jwks_url"] for item in trusted_jwks if item.get("jwks_url")] or None
 
         if key == "CHECK_CLAIMS":
-            for item in trusted_jwks:
-                if item.get("aud_required") == "always" and "claims" in item:
-                    return item["claims"] or None
-
+            try:
+                return next(item["claims"] for item in trusted_jwks if item.get("claims"))
+            except StopIteration:
+                return None
         return None
 
 

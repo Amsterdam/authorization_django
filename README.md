@@ -68,9 +68,8 @@ The items in `TRUSTED_JWKS` should have the following shape:
   "jwks": {...},
   "claims": {
     "iss": "issuer",
-    "aud": "audience"
+    "aud": "audience" # only required for EntraID at the moment.
   },
-  "aud_required": "always" | "never" | "resource_access" | "realm_access"
 }
 
 Note that either `jwks_url` or `jwks` should be defined, not both. `jwks` is used mostly
@@ -209,7 +208,7 @@ Changelog
 ---------
 * v2.4.0
   * Make middleware use TRUSTED_JWKS by default; compose this from other settings if needed.
-  * Allow jwks from file/dict rather than url for testing.
+  * Allow jwks from file/dict in TRUSTED_JWKS rather than url for testing.
   * Move validation of settings to pydantic model.
 * v2.3.0
   * Tighten check for correct keycloak instance.

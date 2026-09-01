@@ -342,7 +342,6 @@ def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss
                 {
                     "jwks_url": jwks_url,
                     "claims": {"aud": "aud", "iss": "iss"},
-                    "aud_required": "always",
                 }
             ],
         }
@@ -359,7 +358,9 @@ def test_jwks_from_url_entra_error(requests_mock):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     with pytest.raises(config.AuthzConfigurationError) as excinfo:
-        reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
+        reload_settings(
+            {"JWKS": None, "TRUSTED_JWKS": [{"jwks_url": jwks_url, "claims": {"iss": "iss"}}]}
+        )
     assert "When using Microsoft Entra ID" in str(excinfo.value)
 
 
@@ -378,12 +379,10 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
                 {
                     "jwks_url": kc_jwks_url,
                     "claims": {"iss": "iss"},
-                    "aud_required": "never",
                 },
                 {
                     "jwks_url": entra_jwks_url,
                     "claims": {"aud": "aud", "iss": "iss"},
-                    "aud_required": "always",
                 },
             ],
         }
@@ -399,12 +398,10 @@ def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
         {
             "jwks_url": "https://trusted.example/.well-known/jwks.json",
             "claims": {"aud": "trusted-aud", "iss": "trusted-iss"},
-            "aud_required": "always",
         },
         {
             "jwks_url": "https://trusted-2.example/.well-known/jwks.json",
             "claims": {"iss": "another-trusted-issuer"},
-            "aud_required": "never",
         },
     ]
     with caplog.at_level("WARNING", logger="authorization_django.config"):
@@ -461,7 +458,6 @@ def test_trusted_jwks_synthesized_from_deprecated_settings():
         {
             "jwks_url": jwks_url,
             "claims": {"aud": "aud", "iss": "iss"},
-            "aud_required": "always",
         }
     ]
 
@@ -476,7 +472,6 @@ def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scope
                 {
                     "jwks_url": jwks_url,
                     "claims": {"aud": "aud", "iss": "iss"},
-                    "aud_required": "always",
                 }
             ],
         }
@@ -582,7 +577,6 @@ def test_entra_id_token_no_aud(tokendata_entra_id_two_scopes, requests_mock):
         {
             "jwks_url": jwks_url,
             "claims": {"aud": "aud", "iss": "https://login.microsoftonline.com/"},
-            "aud_required": "always",
         }
     ]
     reload_settings(testsettings)
