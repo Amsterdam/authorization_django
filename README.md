@@ -209,6 +209,7 @@ Changelog
 * v2.4.0
   * Make middleware use TRUSTED_JWKS by default; compose this from other settings if needed.
   * Allow jwks from file/dict in TRUSTED_JWKS rather than url for testing.
+  * Separate jwks keysets per issuer defined in TRUSTED_JWKS.
   * Move validation of settings to pydantic model.
 * v2.3.0
   * Tighten check for correct keycloak instance.
