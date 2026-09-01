@@ -48,7 +48,7 @@ class AuthorizationMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.middleware_settings = get_settings()
+        self.settings = get_settings()
         self.jwks = JWKSWrapper()
 
     @staticmethod
@@ -84,8 +84,7 @@ class AuthorizationMiddleware:
         raise RuntimeError("Should not call is_authorized_for in anonymous routes")
 
     def handle_exception(self, request, exception):
-        settings = get_settings()
-        if exception_handler := settings["EXCEPTION_HANDLER"]:
+        if exception_handler := self.settings["EXCEPTION_HANDLER"]:
             return exception_handler(
                 request, exception
             )  # other application takes care of exception handling
@@ -148,45 +147,31 @@ class AuthorizationMiddleware:
         return account_id
 
     def _decode_token(self, raw_jwt):
-        settings = get_settings()
         keyset = self.jwks.keyset
-        check_claims = settings["CHECK_CLAIMS"] or None
-        if check_claims:
-            # Specifying check_claims disables the automatic check on expiry,
-            # so that needs to be explicitly added now.
-            check_claims = {**check_claims, "exp": int(time())}
-        try:
-            jwt = JWT(
-                jwt=raw_jwt,
-                key=keyset,
-                algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
-            )
+        error = None
+        for trusted_jwks_item in self.settings["TRUSTED_JWKS"]:
+            check_claims = trusted_jwks_item.get("claims", {})
+            check_claims["exp"] = int(time())
+            try:
+                return JWT(
+                    jwt=raw_jwt,
+                    key=keyset[trusted_jwks_item.get("jwks_url", "JWKS")],
+                    algs=self.settings["ALLOWED_SIGNING_ALGORITHMS"],
+                    check_claims=check_claims,
+                )
+            except JWTExpired as e:
+                logger.info("API authz problem: token expired %s", raw_jwt)
+                raise ExpiredTokenError from e
+            except JWTMissingKey:
+                raise  # for parse_token() to handle
+            except (JWException, ValueError) as e:
+                # invalid signature, invalid claim, missing claim
+                error = e
+                continue
+        logger.warning("API authz problem: %s", error)
+        raise InvalidTokenError
 
-            # Keycloak provides no aud claim
-            claims = json.loads(jwt.claims)
-            iss = claims.get("iss", None)
-            if check_claims and iss and iss.startswith("https://iam.amsterdam.nl/"):
-                check_claims.pop("aud", None)
-                check_claims.pop("iss", None)
-
-            jwt = JWT(
-                jwt=raw_jwt,
-                key=keyset,
-                algs=settings["ALLOWED_SIGNING_ALGORITHMS"],
-                check_claims=check_claims,
-            )
-        except JWTExpired as e:
-            logger.info("API authz problem: token expired %s", raw_jwt)
-            raise ExpiredTokenError from e
-        except JWTMissingKey:
-            raise  # for parse_token() to handle
-        except (JWException, ValueError) as e:
-            # invalid signature, invalid claim, missing claim
-            logger.warning("API authz problem: %s", e)
-            raise InvalidTokenError from e
-        return jwt
-
-    def get_claims(self, jwt):
+    def get_claims(self, jwt: JWT):
         claims = json.loads(jwt.claims)
         if "scopes" in claims:
             # Authz token structure
@@ -195,8 +180,15 @@ class AuthorizationMiddleware:
                 "scopes": claims["scopes"],
                 "claims": claims,
             }
+        elif claims.get("aud") and "resource_access" in claims:  # Audience claim present
+            # Keycloak resource access token structure
+            return {
+                "sub": claims.get("sub"),
+                "scopes": {self.convert_scope(r) for r in claims["resource_access"]["roles"]},
+                "claims": claims,
+            }
         elif claims.get("realm_access"):
-            # Keycloak token structure
+            # Keycloak realm access token structure (does not require audience)
             return {
                 "sub": claims.get("sub"),
                 "scopes": {self.convert_scope(r) for r in claims["realm_access"]["roles"]},
@@ -230,7 +222,7 @@ class AuthorizationMiddleware:
         return scope.upper().replace("_", "/")
 
     def handle_scope(self, authz_func, request: HttpRequest):
-        min_scope = self.middleware_settings["MIN_SCOPE"]
+        min_scope = self.settings["MIN_SCOPE"]
 
         if not authz_func:
             raise InsufficientScopeError
@@ -238,7 +230,7 @@ class AuthorizationMiddleware:
         if len(min_scope) > 0 and not authz_func(*min_scope):
             raise InsufficientScopeError
 
-        PROTECTED = self.middleware_settings["PROTECTED"]
+        PROTECTED = self.settings["PROTECTED"]
         for resource in PROTECTED:
             (route, protected_methods, required_scopes) = resource
             if (
@@ -254,7 +246,7 @@ class AuthorizationMiddleware:
         """
 
         # Config is set to ALWAYS OK, authorisation check disabled
-        if self.middleware_settings["ALWAYS_OK"]:
+        if self.settings["ALWAYS_OK"]:
             logger.warning("API authz DISABLED")
             request.is_authorized_for = self.always_ok
             request.get_token_subject = "ALWAYS_OK"  # noqa: S105
@@ -262,8 +254,7 @@ class AuthorizationMiddleware:
 
         # Path is in forced anonymous routes or method is Options
         forced_anonymous = any(
-            request.path.startswith(route)
-            for route in self.middleware_settings["FORCED_ANONYMOUS_ROUTES"]
+            request.path.startswith(route) for route in self.settings["FORCED_ANONYMOUS_ROUTES"]
         )
 
         if forced_anonymous or request.method == "OPTIONS":

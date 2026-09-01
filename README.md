@@ -65,12 +65,15 @@ The items in `TRUSTED_JWKS` should have the following shape:
 
 {
   "jwks_url": "https://...",
+  "jwks": {...},
   "claims": {
     "iss": "issuer",
-    "aud": "audience"
+    "aud": "audience" # only required for EntraID at the moment.
   },
-  "aud_required": "always" | "never" | "resource_access" | "realm_access"
 }
+
+Note that either `jwks_url` or `jwks` should be defined, not both. `jwks` is used mostly
+in tests.
 
 Usage
 -----
@@ -203,6 +206,11 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v2.4.0
+  * Make middleware use TRUSTED_JWKS by default; compose this from other settings if needed.
+  * Allow jwks from file/dict in TRUSTED_JWKS rather than url for testing.
+  * Separate jwks keysets per issuer defined in TRUSTED_JWKS.
+  * Move validation of settings to pydantic model.
 * v2.3.0
   * Tighten check for correct keycloak instance.
   * Add TRUSTED_JWKS config that takes precedence over JWKS_URL(S)/CHECK_CLAIMS + deprecationwarnings.

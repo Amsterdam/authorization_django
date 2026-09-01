@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import defaultdict
 
 import requests
 from jwcrypto.common import JWException
@@ -25,25 +26,28 @@ class JWKSWrapper:
         """
         Initialize keyset, by loading keyset from settings and/or from url
         """
-        self._keyset = JWKSet()
+        self._keyset: dict[str, JWKSet] = defaultdict(JWKSet)
         self._keyset_last_update = time.time()
 
-        if self._settings.get("JWKS"):
-            _load_jwks(self._keyset, self._settings["JWKS"])
+        for trusted_jwks_item in self._settings["TRUSTED_JWKS"]:
+            if url := trusted_jwks_item.get("jwks_url"):
+                _load_jwks_from_url(self._keyset[url], url)
+            elif jwks := trusted_jwks_item.get("jwks"):
+                _load_jwks(self._keyset["JWKS"], jwks)
 
-        if self._settings.get("JWKS_URL"):
-            _load_jwks_from_url(self._keyset, self._settings["JWKS_URL"])
-
-        if self._settings.get("JWKS_URLS"):
-            for url in self._settings["JWKS_URLS"]:
-                _load_jwks_from_url(self._keyset, url)
-
-        if len(self._keyset["keys"]) == 0:
+        if not any(len(keyset["keys"]) > 0 for keyset in self._keyset.values()):
             raise AuthzConfigurationError("No keys loaded!")
 
     @property
     def keyset(self):
         return self._keyset
+
+    def get_key(self, kid):
+        for keyset in self._keyset.values():
+            for key in keyset["keys"]:
+                if key.get("kid") == kid:
+                    return key
+        return None
 
     def check_update_keyset(self):
         """
