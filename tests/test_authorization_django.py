@@ -6,6 +6,7 @@ test_authorization_django
 import json
 import time
 from base64 import urlsafe_b64encode
+from typing import Any
 
 import pytest
 from django import conf
@@ -86,7 +87,7 @@ ALG_LOOKUP = {
     "6": "ES512",
 }
 
-TESTSETTINGS = {
+TESTSETTINGS: dict[str, Any] = {
     "JWKS": json.dumps(JWKS1),
     "ALLOWED_SIGNING_ALGORITHMS": [
         "HS256",
@@ -110,7 +111,7 @@ def reload_settings(s):
 
 def create_token(tokendata, kid, alg):
     jwks = JWKSWrapper()
-    key = jwks.keyset.get_key(kid)
+    key = jwks.get_key(kid)
     token = JWT(header={"alg": alg, "kid": kid}, claims=tokendata)
     token.make_signed_token(key)
     return token
@@ -335,7 +336,16 @@ def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     reload_settings(
-        {"JWKS": None, "JWKS_URL": jwks_url, "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"}}
+        {
+            "JWKS": None,
+            "TRUSTED_JWKS": [
+                {
+                    "jwks_url": jwks_url,
+                    "claims": {"aud": "aud", "iss": "iss"},
+                    "aud_required": "always",
+                }
+            ],
+        }
     )
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
@@ -364,8 +374,18 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
     reload_settings(
         {
             "JWKS": None,
-            "JWKS_URLS": [kc_jwks_url, entra_jwks_url],
-            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
+            "TRUSTED_JWKS": [
+                {
+                    "jwks_url": kc_jwks_url,
+                    "claims": {"iss": "iss"},
+                    "aud_required": "never",
+                },
+                {
+                    "jwks_url": entra_jwks_url,
+                    "claims": {"aud": "aud", "iss": "iss"},
+                    "aud_required": "always",
+                },
+            ],
         }
     )
     middleware = authorization_middleware(_ok_view)
@@ -427,6 +447,25 @@ def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
     )
 
 
+def test_trusted_jwks_synthesized_from_deprecated_settings():
+    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    reload_settings(
+        {
+            "JWKS": None,
+            "JWKS_URL": jwks_url,
+            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
+        }
+    )
+
+    assert config.get_settings()["TRUSTED_JWKS"] == [
+        {
+            "jwks_url": jwks_url,
+            "claims": {"aud": "aud", "iss": "iss"},
+            "aud_required": "always",
+        }
+    ]
+
+
 def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scopes_aud_iss, caplog):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
@@ -449,10 +488,6 @@ def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scope
         middleware(request)
 
     assert request.is_authorized_for("scope1", "scope2")
-    assert any("Accessing deprecated setting JWKS_URL" in message for message in caplog.messages)
-    assert any(
-        "Accessing deprecated setting CHECK_CLAIMS" in message for message in caplog.messages
-    )
 
 
 def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
@@ -515,22 +550,24 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 
-def test_keycloak_token_check_claims(middleware, tokendata_keycloak_two_scopes):
+def test_keycloak_token_check_claims(tokendata_keycloak_two_scopes):
     testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl/"}
+    testsettings["CHECK_CLAIMS"] = {"iss": "https://iam.amsterdam.nl/"}
     reload_settings(testsettings)
     request = create_request(tokendata_keycloak_two_scopes, "1")
+    middleware = authorization_middleware(_ok_view)
     middleware(request)
 
     assert request.get_token_subject == "test@tester.nl"
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 
-def test_entra_id_token_aud_iss(middleware, tokendata_entra_id_two_scopes):
+def test_entra_id_token_aud_iss(tokendata_entra_id_two_scopes):
     testsettings = TESTSETTINGS.copy()
     testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://sts.windows.net"}
     reload_settings(testsettings)
     request = create_request(tokendata_entra_id_two_scopes, "1")
+    middleware = authorization_middleware(_ok_view)
     middleware(request)
 
     assert request.get_token_subject == "test@tester.nl"
@@ -538,14 +575,22 @@ def test_entra_id_token_aud_iss(middleware, tokendata_entra_id_two_scopes):
     assert request.get_token_claims["appid"] == "client_id"
 
 
-def test_entra_id_token_no_aud(middleware, tokendata_entra_id_two_scopes):
+def test_entra_id_token_no_aud(tokendata_entra_id_two_scopes, requests_mock):
     testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://sts.windows.net"}
+    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    testsettings["TRUSTED_JWKS"] = [
+        {
+            "jwks_url": jwks_url,
+            "claims": {"aud": "aud", "iss": "https://login.microsoftonline.com/"},
+            "aud_required": "always",
+        }
+    ]
     reload_settings(testsettings)
-
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     # Remove aud claim
     tokendata_entra_id_two_scopes.pop("aud", None)
     request = create_request(tokendata_entra_id_two_scopes, "1")
+    middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert response.status_code == 401
 
