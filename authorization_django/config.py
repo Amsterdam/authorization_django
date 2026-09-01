@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 
 logger = logging.getLogger(__name__)
 
+MICROSOFT = "https://login.microsoftonline.com/"
+
 
 class Claims(BaseModel):
     iss: str
@@ -34,6 +36,9 @@ class TrustedJwksItem(BaseModel):
             raise ValueError("Either jwks_url or jwks must be provided")
         if self.jwks_url and self.jwks:
             raise ValueError("Provide either jwks_url or jwks, not both")
+        if self.jwks_url and self.jwks_url.startswith(MICROSOFT) and self.aud_required != "always":
+            raise ValueError("aud_required must be 'always' for Microsoft EntraID.")
+
         return self
 
 
@@ -243,7 +248,6 @@ class SettingsProxy(Mapping):
         return self._values[key]
 
     def _compose_trusted_jwks(self):
-        MICROSOFT = "https://login.microsoftonline.com/"
         trusted_jwks = []
         if self._values["JWKS"]:
             trusted_jwks.append(
