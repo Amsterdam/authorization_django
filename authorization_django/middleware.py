@@ -5,7 +5,6 @@ authorization_django.middleware
 
 import json
 import logging
-from time import time
 
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from jwcrypto.common import JWException
@@ -84,7 +83,7 @@ class AuthorizationMiddleware:
         raise RuntimeError("Should not call is_authorized_for in anonymous routes")
 
     def handle_exception(self, request, exception):
-        if exception_handler := self.settings["EXCEPTION_HANDLER"]:
+        if exception_handler := self.settings.EXCEPTION_HANDLER:
             return exception_handler(
                 request, exception
             )  # other application takes care of exception handling
@@ -149,14 +148,13 @@ class AuthorizationMiddleware:
     def _decode_token(self, raw_jwt):
         keyset = self.jwks.keyset
         error = None
-        for trusted_jwks_item in self.settings["TRUSTED_JWKS"]:
-            check_claims = trusted_jwks_item.get("claims", {})
-            check_claims["exp"] = int(time())
+        for trusted_jwks_item in self.settings.TRUSTED_JWKS:
+            check_claims = trusted_jwks_item.claims.model_dump(exclude_none=True)
             try:
                 return JWT(
                     jwt=raw_jwt,
-                    key=keyset[trusted_jwks_item.get("jwks_url", "JWKS")],
-                    algs=self.settings["ALLOWED_SIGNING_ALGORITHMS"],
+                    key=keyset[trusted_jwks_item.jwks_url or "JWKS"],
+                    algs=self.settings.ALLOWED_SIGNING_ALGORITHMS,
                     check_claims=check_claims,
                 )
             except JWTExpired as e:
@@ -222,7 +220,7 @@ class AuthorizationMiddleware:
         return scope.upper().replace("_", "/")
 
     def handle_scope(self, authz_func, request: HttpRequest):
-        min_scope = self.settings["MIN_SCOPE"]
+        min_scope = self.settings.MIN_SCOPE
 
         if not authz_func:
             raise InsufficientScopeError
@@ -230,13 +228,12 @@ class AuthorizationMiddleware:
         if len(min_scope) > 0 and not authz_func(*min_scope):
             raise InsufficientScopeError
 
-        PROTECTED = self.settings["PROTECTED"]
+        PROTECTED = self.settings.PROTECTED
         for resource in PROTECTED:
-            (route, protected_methods, required_scopes) = resource
             if (
-                request.path.startswith(route)
-                and _method_is_protected(request.method, protected_methods)
-                and not authz_func(*required_scopes)
+                request.path.startswith(resource.route)
+                and _method_is_protected(request.method, resource.methods)
+                and not authz_func(*resource.scopes)
             ):
                 raise InsufficientScopeError
 
@@ -246,7 +243,7 @@ class AuthorizationMiddleware:
         """
 
         # Config is set to ALWAYS OK, authorisation check disabled
-        if self.settings["ALWAYS_OK"]:
+        if self.settings.ALWAYS_OK:
             logger.warning("API authz DISABLED")
             request.is_authorized_for = self.always_ok
             request.get_token_subject = "ALWAYS_OK"  # noqa: S105
@@ -254,7 +251,7 @@ class AuthorizationMiddleware:
 
         # Path is in forced anonymous routes or method is Options
         forced_anonymous = any(
-            request.path.startswith(route) for route in self.settings["FORCED_ANONYMOUS_ROUTES"]
+            request.path.startswith(route) for route in self.settings.FORCED_ANONYMOUS_ROUTES
         )
 
         if forced_anonymous or request.method == "OPTIONS":

@@ -3,7 +3,13 @@ from types import SimpleNamespace
 import pytest
 
 from authorization_django import authorization_middleware
-from tests.test_authorization_django import TESTSETTINGS, _ok_view, create_request, reload_settings
+from tests.test_authorization_django import (
+    TESTSETTINGS,
+    _ok_view,
+    create_request,
+    reload_settings,
+    use_settings,
+)
 
 
 def import_drf_extensions():
@@ -64,12 +70,11 @@ def test_has_token_scopes_uses_explicit_needed_scopes():
 
 def test_has_token_scopes_uses_min_scope_from_settings():
     permission_class, _, _ = import_drf_extensions()
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1",))
     tokendata_scope1 = {
         "iat": 1,
         "exp": 4102444800,
+        "iss": "iss",
         "scopes": ["scope1"],
         "sub": "test@tester.nl",
     }
@@ -83,10 +88,7 @@ def test_has_token_scopes_uses_min_scope_from_settings():
 
 def test_has_token_scopes_allows_when_always_ok():
     permission_class, _, _ = import_drf_extensions()
-    testsettings = TESTSETTINGS.copy()
-    testsettings["ALWAYS_OK"] = True
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    reload_settings(testsettings)
+    use_settings(ALWAYS_OK=True, MIN_SCOPE=("scope1",))
     request = SimpleNamespace(get_token_scopes=[])
 
     permission = permission_class()

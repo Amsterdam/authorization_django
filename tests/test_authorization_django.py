@@ -6,17 +6,19 @@ test_authorization_django
 import json
 import time
 from base64 import urlsafe_b64encode
+from copy import deepcopy
 from typing import Any
 
 import pytest
 from django import conf
 from django.http import HttpResponse, JsonResponse
 from django.test import RequestFactory
+from jwcrypto.jwk import JWKSet
 from jwcrypto.jwt import JWT
 
 from authorization_django import authorization_middleware, config
 from authorization_django.exceptions import AuthorizationError
-from authorization_django.jwks import JWKSWrapper
+from authorization_django.jwks import JWKSWrapper, _load_jwks, _load_jwks_from_url
 
 JWKS1 = {
     "keys": [
@@ -87,8 +89,23 @@ ALG_LOOKUP = {
     "6": "ES512",
 }
 
+
+def trusted_jwks_item(*, jwks=None, jwks_url=None, iss="iss", aud=None):
+    item = {}
+    if jwks is not None:
+        item["jwks"] = jwks
+    if jwks_url is not None:
+        item["jwks_url"] = jwks_url
+
+    claims = {"iss": iss}
+    if aud is not None:
+        claims["aud"] = aud
+    item["claims"] = claims
+    return item
+
+
 TESTSETTINGS: dict[str, Any] = {
-    "JWKS": json.dumps(JWKS1),
+    "TRUSTED_JWKS": [trusted_jwks_item(jwks=JWKS1)],
     "ALLOWED_SIGNING_ALGORITHMS": [
         "HS256",
         "HS384",
@@ -104,14 +121,36 @@ TESTSETTINGS: dict[str, Any] = {
 }
 
 
+def settings_with(**overrides):
+    settings = deepcopy(TESTSETTINGS)
+    settings.update(overrides)
+    return settings
+
+
+def set_jwks(s):
+    reload_settings(settings_with(TRUSTED_JWKS=s))
+
+
+def use_settings(**overrides):
+    reload_settings(settings_with(**overrides))
+
+
 def reload_settings(s):
     conf.settings.DATAPUNT_AUTHZ = s
     config.init_settings()
 
 
-def create_token(tokendata, kid, alg):
-    jwks = JWKSWrapper()
-    key = jwks.get_key(kid)
+def get_jwk(jwks, kid):
+    keyset = JWKSet()
+    keyset.import_keyset(json.dumps(jwks))
+    for key in keyset["keys"]:
+        if key.get("kid") == kid:
+            return key
+    return None
+
+
+def create_token(tokendata, kid, alg, signing_jwks=JWKS1):
+    key = get_jwk(signing_jwks, kid)
     token = JWT(header={"alg": alg, "kid": kid}, claims=tokendata)
     token.make_signed_token(key)
     return token
@@ -123,7 +162,9 @@ def create_unsigned_token(tokendata):
     return f"{header}.{tokendata}"
 
 
-def create_request(tokendata, kid=None, prefix="Bearer", path="/", method="GET"):
+def create_request(
+    tokendata, kid=None, prefix="Bearer", path="/", method="GET", signing_jwks=JWKS1
+):
     """Django WSGI Request mock. A Django request object contains a META dict
     that contains the HTTP headers per the WSGI spec, PEP333 (meaning,
     uppercase, prefixed with HTTP_ and dashes transformed to underscores).
@@ -131,7 +172,7 @@ def create_request(tokendata, kid=None, prefix="Bearer", path="/", method="GET")
     if not kid:
         token = create_unsigned_token(tokendata)
     else:
-        token = create_token(tokendata, kid, ALG_LOOKUP[kid]).serialize()
+        token = create_token(tokendata, kid, ALG_LOOKUP[kid], signing_jwks).serialize()
 
     return RequestFactory().generic(
         method, path=path, headers={"authorization": f"{prefix} {token}"}
@@ -151,7 +192,7 @@ def custom_handler(request, exception):
 @pytest.fixture
 def tokendata_missing_scopes():
     now = int(time.time())
-    return {"exp": now + 30}
+    return {"exp": now + 30, "iss": "iss"}
 
 
 @pytest.fixture
@@ -160,6 +201,7 @@ def tokendata_expired():
     return {
         "iat": now,
         "exp": now - 100,  # 60 second leeway allowed
+        "iss": "iss",
         "scopes": ["scope1"],
     }
 
@@ -170,6 +212,7 @@ def tokendata_scope1():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "iss",
         "scopes": ["scope1"],
         "sub": "test@tester.nl",
     }
@@ -181,6 +224,7 @@ def tokendata_scope2():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "iss",
         "scopes": ["scope2"],
         "sub": "test@tester.nl",
     }
@@ -192,6 +236,7 @@ def tokendata_two_scopes():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "iss",
         "scopes": ["scope1", "scope2"],
         "sub": "test@tester.nl",
     }
@@ -203,6 +248,7 @@ def tokendata_account_id():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "iss",
         "scopes": ["scope1", "scope2"],
         "sub": "ABcD12_Ghi3K",
     }
@@ -227,6 +273,7 @@ def tokendata_zero_scopes():
     return {
         "iat": now,
         "exp": now + 30,
+        "iss": "iss",
         "scopes": [],
         "sub": "test@tester.nl",
     }
@@ -317,13 +364,14 @@ def middleware():
 
 
 def test_missing_conf():
+    reload_settings({})
     with pytest.raises(config.AuthzConfigurationError):
         authorization_middleware(None)
 
 
 def test_bad_jwks():
     with pytest.raises(config.AuthzConfigurationError):
-        reload_settings({"JWKS": "iamnotajwks"})
+        set_jwks([trusted_jwks_item(jwks="iamnotajwks")])
         authorization_middleware(None)
 
 
@@ -333,7 +381,7 @@ def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     """
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
+    set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
@@ -348,17 +396,7 @@ def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss
     """
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    reload_settings(
-        {
-            "JWKS": None,
-            "TRUSTED_JWKS": [
-                {
-                    "jwks_url": jwks_url,
-                    "claims": {"aud": "aud", "iss": "iss"},
-                }
-            ],
-        }
-    )
+    set_jwks([trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
     middleware(request)
@@ -371,9 +409,7 @@ def test_jwks_from_url_entra_error(requests_mock):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     with pytest.raises(config.AuthzConfigurationError) as excinfo:
-        reload_settings(
-            {"JWKS": None, "TRUSTED_JWKS": [{"jwks_url": jwks_url, "claims": {"iss": "iss"}}]}
-        )
+        set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
     assert "When using Microsoft Entra ID" in str(excinfo.value)
 
 
@@ -385,20 +421,11 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
     entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
     requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
-    reload_settings(
-        {
-            "JWKS": None,
-            "TRUSTED_JWKS": [
-                {
-                    "jwks_url": kc_jwks_url,
-                    "claims": {"iss": "iss"},
-                },
-                {
-                    "jwks_url": entra_jwks_url,
-                    "claims": {"aud": "aud", "iss": "iss"},
-                },
-            ],
-        }
+    set_jwks(
+        [
+            trusted_jwks_item(jwks_url=kc_jwks_url),
+            trusted_jwks_item(jwks_url=entra_jwks_url, iss="iss", aud="aud"),
+        ]
     )
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
@@ -435,89 +462,10 @@ def test_jwks_from_url_list_uses_key_from_second_keyset(requests_mock, tokendata
     assert request.is_authorized_for("scope1", "scope2")
 
 
-def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
-    trusted_jwks = [
-        {
-            "jwks_url": "https://trusted.example/.well-known/jwks.json",
-            "claims": {"aud": "trusted-aud", "iss": "trusted-iss"},
-        },
-        {
-            "jwks_url": "https://trusted-2.example/.well-known/jwks.json",
-            "claims": {"iss": "another-trusted-issuer"},
-        },
-    ]
-    with caplog.at_level("WARNING", logger="authorization_django.config"):
-        reload_settings(
-            {
-                "JWKS": None,
-                "JWKS_URL": "https://legacy.example/jwks.json",
-                "JWKS_URLS": ["https://legacy.example/jwks.json"],
-                "CHECK_CLAIMS": {"aud": "legacy-aud", "iss": "legacy-iss"},
-                "TRUSTED_JWKS": trusted_jwks,
-            }
-        )
-        settings = config.get_settings()
-
-        assert settings["JWKS_URL"] == trusted_jwks[0]["jwks_url"]
-        assert settings["JWKS_URLS"] == [item["jwks_url"] for item in trusted_jwks]
-        assert settings["CHECK_CLAIMS"] == trusted_jwks[0]["claims"]
-
-    assert caplog.messages[0] == (
-        "Deprecated settings present: CHECK_CLAIMS, JWKS_URL, JWKS_URLS. "
-        "Please migrate to TRUSTED_JWKS."
-    )
-    assert (
-        caplog.messages.count(
-            "Accessing deprecated setting JWKS_URL. Please migrate to TRUSTED_JWKS."
-        )
-        >= 1
-    )
-    assert (
-        caplog.messages.count(
-            "Accessing deprecated setting JWKS_URLS. Please migrate to TRUSTED_JWKS."
-        )
-        >= 1
-    )
-    assert (
-        caplog.messages.count(
-            "Accessing deprecated setting CHECK_CLAIMS. Please migrate to TRUSTED_JWKS."
-        )
-        >= 1
-    )
-
-
-def test_trusted_jwks_synthesized_from_deprecated_settings():
-    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
-    reload_settings(
-        {
-            "JWKS": None,
-            "JWKS_URL": jwks_url,
-            "CHECK_CLAIMS": {"aud": "aud", "iss": "iss"},
-        }
-    )
-
-    assert config.get_settings()["TRUSTED_JWKS"] == [
-        {
-            "jwks_url": jwks_url,
-            "claims": {"aud": "aud", "iss": "iss"},
-        }
-    ]
-
-
 def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scopes_aud_iss, caplog):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    reload_settings(
-        {
-            "JWKS": None,
-            "TRUSTED_JWKS": [
-                {
-                    "jwks_url": jwks_url,
-                    "claims": {"aud": "aud", "iss": "iss"},
-                }
-            ],
-        }
-    )
+    set_jwks([trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
 
@@ -535,18 +483,17 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
 
     # Create a request with a token signed with a key from JWKS2
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
-    reload_settings({"JWKS": None, "JWKS_URL": jwks_url})
-    request = create_request(tokendata_two_scopes, "6")
+    set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
+    request = create_request(tokendata_two_scopes, "6", signing_jwks=JWKS2)
     # Instantiate the middleware with JWKS1
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     reload_settings(
-        {
-            "JWKS": None,
-            "JWKS_URL": jwks_url,
-            "MIN_INTERVAL_KEYSET_UPDATE": 0,  # Set update interval to 0 secs for the test
-        }
+        settings_with(
+            TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url)],
+            MIN_INTERVAL_KEYSET_UPDATE=0,
+        )
     )
-    assert requests_mock.call_count == 1, requests_mock.request_history
+    assert requests_mock.call_count == 0, requests_mock.request_history
     middleware = authorization_middleware(lambda r: HttpResponse(status=200))
     """
     Process a request with the middleware. The middleware should now:
@@ -556,7 +503,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     - respond with an invalid_token response
     """
     response = middleware(request)
-    assert requests_mock.call_count == 3
+    assert requests_mock.call_count == 2
     assert response.status_code == 401
     assert response.content == b"Unauthorized. Invalid token."
     """
@@ -568,7 +515,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     """
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
     middleware(request)
-    assert requests_mock.call_count == 4
+    assert requests_mock.call_count == 3
     assert request.is_authorized_for("scope1", "scope2")
 
 
@@ -579,7 +526,9 @@ def test_hmac_keys_valid(middleware, tokendata_two_scopes):
         assert request.is_authorized_for("scope1", "scope2")
 
 
-def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
+def test_keycloak_token(tokendata_keycloak_two_scopes):
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="https://iam.amsterdam.nl/")])
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware(request)
 
@@ -588,9 +537,7 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
 
 
 def test_keycloak_token_check_claims(tokendata_keycloak_two_scopes):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"iss": "https://iam.amsterdam.nl/"}
-    reload_settings(testsettings)
+    set_jwks([trusted_jwks_item(jwks=JWKS1, iss="https://iam.amsterdam.nl/")])
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware = authorization_middleware(_ok_view)
     middleware(request)
@@ -599,7 +546,9 @@ def test_keycloak_token_check_claims(tokendata_keycloak_two_scopes):
     assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 
-def test_keycloak_resource_access_token(middleware, tokendata_keycloak_resource_access_two_scopes):
+def test_keycloak_resource_access_token(tokendata_keycloak_resource_access_two_scopes):
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="https://iam.amsterdam.nl/")])
+    middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_keycloak_resource_access_two_scopes, "1")
     middleware(request)
 
@@ -608,9 +557,9 @@ def test_keycloak_resource_access_token(middleware, tokendata_keycloak_resource_
 
 
 def test_entra_id_token_aud_iss(tokendata_entra_id_two_scopes):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://sts.windows.net"}
-    reload_settings(testsettings)
+    use_settings(
+        TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="https://sts.windows.net", aud="aud")]
+    )
     request = create_request(tokendata_entra_id_two_scopes, "1")
     middleware = authorization_middleware(_ok_view)
     middleware(request)
@@ -621,15 +570,16 @@ def test_entra_id_token_aud_iss(tokendata_entra_id_two_scopes):
 
 
 def test_entra_id_token_no_aud(tokendata_entra_id_two_scopes, requests_mock):
-    testsettings = TESTSETTINGS.copy()
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
-    testsettings["TRUSTED_JWKS"] = [
-        {
-            "jwks_url": jwks_url,
-            "claims": {"aud": "aud", "iss": "https://login.microsoftonline.com/"},
-        }
-    ]
-    reload_settings(testsettings)
+    use_settings(
+        TRUSTED_JWKS=[
+            trusted_jwks_item(
+                jwks_url=jwks_url,
+                iss="https://login.microsoftonline.com/",
+                aud="aud",
+            )
+        ]
+    )
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     # Remove aud claim
     tokendata_entra_id_two_scopes.pop("aud", None)
@@ -721,19 +671,8 @@ def test_unknown_kid(tokendata_two_scopes):
     """
     Verify that a token signed with an unknown key results in an "invalid_token" response
     """
-    # Create a request with a token signed with a key from JWKS2
-    reload_settings(
-        {
-            "JWKS": json.dumps(JWKS2),
-        }
-    )
-    request = create_request(tokendata_two_scopes, "6")
-    # Instantiate the middleware with JWKS1
-    reload_settings(
-        {
-            "JWKS": json.dumps(JWKS1),
-        }
-    )
+    request = create_request(tokendata_two_scopes, "6", signing_jwks=JWKS2)
+    reload_settings(TESTSETTINGS)
     middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert response.status_code == 401
@@ -764,9 +703,7 @@ def test_no_authorization_header(middleware):
 
 def test_check_missing_iss(tokendata_scope1):
     """Enforce claim checks"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
-    reload_settings(testsettings)
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="FOOBAR")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
@@ -776,9 +713,7 @@ def test_check_missing_iss(tokendata_scope1):
 @pytest.mark.parametrize(["issuer", "expect_code"], [("NOT_FOOBAR", 401), ("FOOBAR", 200)])
 def test_check_issuer(tokendata_issuer, issuer, expect_code):
     """Enforce claim checks"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"iss": issuer}
-    reload_settings(testsettings)
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss=issuer)])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer, "4")
     response = middleware(request)
@@ -789,9 +724,7 @@ def test_check_correct_issuer_expired(tokendata_issuer_expired):
     """When check_claims is given, this also overrides 'exp' checking.
     Make sure that still works!
     """
-    testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"iss": "FOOBAR"}
-    reload_settings(testsettings)
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="FOOBAR")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_issuer_expired, "4")
     response = middleware(request)
@@ -810,9 +743,7 @@ def test_check_iss_aud_present_for_entra(tokendata_issuer_expired):
 
 def test_min_scope_sufficient(tokendata_scope1):
     """scope1 is required, scope1 is in token"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1",))
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
@@ -821,9 +752,7 @@ def test_min_scope_sufficient(tokendata_scope1):
 
 def test_min_scope_insufficient():
     """scope1 is required, request with no token"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1",))
     middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
     response = middleware(request)
@@ -833,9 +762,7 @@ def test_min_scope_insufficient():
 
 def test_min_scope_as_string_sufficient(tokendata_scope1):
     """MIN_SCOPE configured as string instead of tuple"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = "scope1"
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE="scope1")
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
@@ -844,9 +771,7 @@ def test_min_scope_as_string_sufficient(tokendata_scope1):
 
 def test_min_scope_as_string_insufficient(tokendata_scope1):
     """MIN_SCOPE configured as string instead of tuple"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = "scope1"
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE="scope1")
     middleware = authorization_middleware(_ok_view)
     request = create_request_no_auth_header()
     response = middleware(request)
@@ -855,9 +780,7 @@ def test_min_scope_as_string_insufficient(tokendata_scope1):
 
 def test_min_scope_multiple_sufficient(tokendata_two_scopes):
     """Two scopes required, both of them in token"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1", "scope2")
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1", "scope2"))
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     response = middleware(request)
@@ -866,9 +789,7 @@ def test_min_scope_multiple_sufficient(tokendata_two_scopes):
 
 def test_min_scope_multiple_insufficient(tokendata_scope1):
     """Two scopes required, only one of them in token"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1", "scope2")
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1", "scope2"))
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_scope1, "4")
     response = middleware(request)
@@ -877,10 +798,7 @@ def test_min_scope_multiple_insufficient(tokendata_scope1):
 
 
 def test_forced_anonymous_routes(rf):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["FORCED_ANONYMOUS_ROUTES"] = ("/status",)
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    reload_settings(testsettings)
+    use_settings(FORCED_ANONYMOUS_ROUTES=("/status",), MIN_SCOPE=("scope1",))
     empty_request = rf.get("/status/lala")
     middleware = authorization_middleware(_ok_view)
     response = middleware(empty_request)
@@ -890,9 +808,7 @@ def test_forced_anonymous_routes(rf):
 
 
 def test_options_works_while_min_scope(rf):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope",)
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope",))
     middleware = authorization_middleware(_ok_view)
     empty_request = rf.options(path="/")
     response = middleware(empty_request)
@@ -902,12 +818,12 @@ def test_options_works_while_min_scope(rf):
 
 
 def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["PROTECTED"] = [
-        ("/one_scope_required", ["*"], ["scope1"]),
-        ("/two_scopes_required", ["*"], ["scope1", "scope2"]),
-    ]
-    reload_settings(testsettings)
+    use_settings(
+        PROTECTED=[
+            ("/one_scope_required", ["*"], ["scope1"]),
+            ("/two_scopes_required", ["*"], ["scope1", "scope2"]),
+        ]
+    )
     middleware = authorization_middleware(_ok_view)
 
     # a token with scope1 gives access via all methods
@@ -936,12 +852,12 @@ def test_protected_resources_all_methods(tokendata_scope1, tokendata_two_scopes)
 
 
 def test_protected_resource_read_write_distinction(tokendata_scope1, tokendata_scope2):
-    testsettings = TESTSETTINGS.copy()
-    testsettings["PROTECTED"] = [
-        ("/read_write_distinction", ["GET", "HEAD"], ["scope1"]),
-        ("/read_write_distinction", ["PATCH", "PUT", "POST", "DELETE"], ["scope2"]),
-    ]
-    reload_settings(testsettings)
+    use_settings(
+        PROTECTED=[
+            ("/read_write_distinction", ["GET", "HEAD"], ["scope1"]),
+            ("/read_write_distinction", ["PATCH", "PUT", "POST", "DELETE"], ["scope2"]),
+        ]
+    )
     middleware = authorization_middleware(_ok_view)
 
     request = create_request(tokendata_scope1, "4", "Bearer", "/read_write_distinction", "GET")
@@ -959,10 +875,8 @@ def test_protected_resource_read_write_distinction(tokendata_scope1, tokendata_s
 
 
 def test_unknown_config_param():
-    testsettings = TESTSETTINGS.copy()
-    testsettings["lalaland"] = "oscar"
     with pytest.raises(config.AuthzConfigurationError):
-        reload_settings(testsettings)
+        reload_settings(settings_with(lalaland="oscar"))
         authorization_middleware(None)
 
 
@@ -973,20 +887,14 @@ def test_protected_resource_syntax_error():
         ("/foo", ["*"]),
     ]
     for entry in invalid_entries:
-        testsettings = TESTSETTINGS.copy()
-        protected = []
-        protected.append(entry)
-        testsettings["PROTECTED"] = protected
         with pytest.raises(config.ProtectedRecourceSyntaxError):
-            reload_settings(testsettings)
+            use_settings(PROTECTED=[entry])
             authorization_middleware(None)
 
 
 def test_empty_scopes_error():
-    testsettings = TESTSETTINGS.copy()
-    testsettings["PROTECTED"] = [("/foo/protected", ["*"], [])]
     with pytest.raises(config.NoRequiredScopesError):
-        reload_settings(testsettings)
+        use_settings(PROTECTED=[("/foo/protected", ["*"], [])])
         authorization_middleware(None)
 
 
@@ -994,11 +902,11 @@ def test_protected_route_overruled_error():
     """Configuring a protected route that would be overruled by a
     route in FORCED_ANONYMOUS_ROUTES should lead to a ProtectedRouteConflict
     """
-    testsettings = TESTSETTINGS.copy()
-    testsettings["PROTECTED"] = [("/foo/protected", ["*"], ["scope1"])]
-    testsettings["FORCED_ANONYMOUS_ROUTES"] = ("/foo",)
     with pytest.raises(config.ProtectedRouteConflictError):
-        reload_settings(testsettings)
+        use_settings(
+            PROTECTED=[("/foo/protected", ["*"], ["scope1"])],
+            FORCED_ANONYMOUS_ROUTES=("/foo",),
+        )
         authorization_middleware(None)
 
 
@@ -1018,13 +926,104 @@ def test_invalid_request_request_type(middleware, tokendata_expired):
 
 def test_custom_exception(middleware):
     """test custom handler"""
-    testsettings = TESTSETTINGS.copy()
-    testsettings["MIN_SCOPE"] = ("scope1",)
-    testsettings["EXCEPTION_HANDLER"] = custom_handler
-    reload_settings(testsettings)
+    use_settings(MIN_SCOPE=("scope1",), EXCEPTION_HANDLER=custom_handler)
     request = create_request_no_auth_header()
     middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert isinstance(response, JsonResponse)
     assert response.status_code == 401
     assert response.content == b'{"message": "Unauthorized"}'
+
+
+def test_always_ok_sets_request_state():
+    use_settings(ALWAYS_OK=True)
+    request = create_request_no_auth_header()
+
+    response = authorization_middleware(_ok_view)(request)
+
+    assert response.status_code == 200
+    assert request.is_authorized_for("scope1")
+    assert request.get_token_subject == "ALWAYS_OK"
+
+
+def test_authorized_request_logs_x_unique_id(tokendata_scope1, caplog):
+    use_settings(MIN_SCOPE=("scope1",))
+    request = create_request(tokendata_scope1, "4")
+    request.META["HTTP_X_UNIQUE_ID"] = "request-1"
+    middleware = authorization_middleware(_ok_view)
+
+    with caplog.at_level("INFO", logger="authorization_django.middleware"):
+        response = middleware(request)
+
+    assert response.status_code == 200
+    assert "X-Unique-ID: request-1" in caplog.text
+
+
+def test_azure_group_claims_are_converted():
+    now = int(time.time())
+    use_settings()
+    tokendata = {
+        "iat": now,
+        "exp": now + 30,
+        "iss": "iss",
+        "groups": ["scope_1 admins", "scope_2 readers"],
+        "unique_name": "test@tester.nl",
+    }
+    request = create_request(tokendata, "1")
+
+    authorization_middleware(_ok_view)(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
+
+def test_trusted_jwks_requires_a_single_key_source():
+    with pytest.raises(config.AuthzConfigurationError):
+        reload_settings(settings_with(TRUSTED_JWKS=[{"claims": {"iss": "iss"}}]))
+
+    with pytest.raises(config.AuthzConfigurationError):
+        set_jwks([trusted_jwks_item(jwks=JWKS1, jwks_url="https://example.com/jwks")])
+
+
+def test_protected_settings_validate_container_and_field_types():
+    with pytest.raises(config.AuthzConfigurationError):
+        use_settings(PROTECTED="/not/a/list")
+
+    with pytest.raises(config.AuthzConfigurationError):
+        use_settings(PROTECTED=[(1, ["GET"], ["scope1"])])
+
+
+def test_jwks_wrapper_get_key_returns_none_for_unknown_key():
+    reload_settings(TESTSETTINGS)
+
+    assert JWKSWrapper().get_key("missing") is None
+
+
+def test_load_jwks_raises_for_invalid_settings_data():
+    with pytest.raises(config.AuthzConfigurationError):
+        _load_jwks(JWKSet(), "not-a-jwks")
+
+
+def test_load_jwks_from_url_raises_for_request_errors(requests_mock):
+    jwks_url = "https://example.com/failing-jwks"
+    requests_mock.get(jwks_url, status_code=500)
+
+    with pytest.raises(config.AuthzConfigurationError):
+        _load_jwks_from_url(JWKSet(), jwks_url)
+
+
+def test_load_jwks_from_url_raises_for_invalid_payload(requests_mock):
+    jwks_url = "https://example.com/invalid-jwks"
+    requests_mock.get(jwks_url, text="not json")
+
+    with pytest.raises(config.AuthzConfigurationError):
+        _load_jwks_from_url(JWKSet(), jwks_url)
+
+
+def test_get_settings_initializes_on_demand():
+    conf.settings.DATAPUNT_AUTHZ = TESTSETTINGS
+    config._settings = {}
+
+    settings = config.get_settings()
+
+    assert settings.TRUSTED_JWKS[0].claims.iss == "iss"
