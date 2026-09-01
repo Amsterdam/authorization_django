@@ -153,7 +153,7 @@ class AuthorizationMiddleware:
             check_claims = trusted_jwks_item.get("claims", {})
             check_claims["exp"] = int(time())
             try:
-                jwt = JWT(
+                return JWT(
                     jwt=raw_jwt,
                     key=keyset[trusted_jwks_item.get("jwks_url", "JWKS")],
                     algs=self.settings["ALLOWED_SIGNING_ALGORITHMS"],
@@ -168,11 +168,10 @@ class AuthorizationMiddleware:
                 # invalid signature, invalid claim, missing claim
                 error = e
                 continue
-            return jwt
         logger.warning("API authz problem: %s", error)
         raise InvalidTokenError
 
-    def get_claims(self, jwt):
+    def get_claims(self, jwt: JWT):
         claims = json.loads(jwt.claims)
         if "scopes" in claims:
             # Authz token structure
@@ -181,8 +180,15 @@ class AuthorizationMiddleware:
                 "scopes": claims["scopes"],
                 "claims": claims,
             }
+        elif claims.get("aud") and "resource_access" in claims:  # Audience claim present
+            # Keycloak resource access token structure
+            return {
+                "sub": claims.get("sub"),
+                "scopes": {self.convert_scope(r) for r in claims["resource_access"]["roles"]},
+                "claims": claims,
+            }
         elif claims.get("realm_access"):
-            # Keycloak token structure
+            # Keycloak realm access token structure (does not require audience)
             return {
                 "sub": claims.get("sub"),
                 "scopes": {self.convert_scope(r) for r in claims["realm_access"]["roles"]},

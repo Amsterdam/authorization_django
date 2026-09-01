@@ -270,6 +270,19 @@ def tokendata_keycloak_two_scopes():
 
 
 @pytest.fixture
+def tokendata_keycloak_resource_access_two_scopes():
+    now = int(time.time())
+    return {
+        "iat": now,
+        "exp": now + 30,
+        "iss": "https://iam.amsterdam.nl/",
+        "aud": "my-api",
+        "resource_access": {"roles": ["scope_1", "scope_2"]},
+        "sub": "test@tester.nl",
+    }
+
+
+@pytest.fixture
 def tokendata_issuer():
     now = int(time.time())
     return {
@@ -551,6 +564,14 @@ def test_keycloak_token_check_claims(tokendata_keycloak_two_scopes):
     reload_settings(testsettings)
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware = authorization_middleware(_ok_view)
+    middleware(request)
+
+    assert request.get_token_subject == "test@tester.nl"
+    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
+
+
+def test_keycloak_resource_access_token(middleware, tokendata_keycloak_resource_access_two_scopes):
+    request = create_request(tokendata_keycloak_resource_access_two_scopes, "1")
     middleware(request)
 
     assert request.get_token_subject == "test@tester.nl"
