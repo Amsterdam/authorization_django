@@ -262,7 +262,7 @@ def tokendata_keycloak_two_scopes():
     return {
         "iat": now,
         "exp": now + 30,
-        "iss": "https://iam.amsterdam.nl",
+        "iss": "https://iam.amsterdam.nl/",
         "realm_access": {"roles": ["scope_1", "scope_2"]},
         "sub": "test@tester.nl",
     }
@@ -374,6 +374,86 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
     assert request.is_authorized_for("scope1", "scope2")
 
 
+def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
+    trusted_jwks = [
+        {
+            "jwks_url": "https://trusted.example/.well-known/jwks.json",
+            "claims": {"aud": "trusted-aud", "iss": "trusted-iss"},
+            "aud_required": "always",
+        },
+        {
+            "jwks_url": "https://trusted-2.example/.well-known/jwks.json",
+            "aud_required": "never",
+        },
+    ]
+    with caplog.at_level("WARNING", logger="authorization_django.config"):
+        reload_settings(
+            {
+                "JWKS": None,
+                "JWKS_URL": "https://legacy.example/jwks.json",
+                "JWKS_URLS": ["https://legacy.example/jwks.json"],
+                "CHECK_CLAIMS": {"aud": "legacy-aud", "iss": "legacy-iss"},
+                "TRUSTED_JWKS": trusted_jwks,
+            }
+        )
+        settings = config.get_settings()
+
+        assert settings["JWKS_URL"] == trusted_jwks[0]["jwks_url"]
+        assert settings["JWKS_URLS"] == [item["jwks_url"] for item in trusted_jwks]
+        assert settings["CHECK_CLAIMS"] == trusted_jwks[0]["claims"]
+
+    assert caplog.messages[0] == (
+        "Deprecated settings present: CHECK_CLAIMS, JWKS_URL, JWKS_URLS. "
+        "Please migrate to TRUSTED_JWKS."
+    )
+    assert (
+        caplog.messages.count(
+            "Accessing deprecated setting JWKS_URL. Please migrate to TRUSTED_JWKS."
+        )
+        >= 2
+    )
+    assert (
+        caplog.messages.count(
+            "Accessing deprecated setting JWKS_URLS. Please migrate to TRUSTED_JWKS."
+        )
+        >= 2
+    )
+    assert (
+        caplog.messages.count(
+            "Accessing deprecated setting CHECK_CLAIMS. Please migrate to TRUSTED_JWKS."
+        )
+        >= 1
+    )
+
+
+def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scopes_aud_iss, caplog):
+    jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
+    requests_mock.get(jwks_url, text=json.dumps(JWKS1))
+    reload_settings(
+        {
+            "JWKS": None,
+            "TRUSTED_JWKS": [
+                {
+                    "jwks_url": jwks_url,
+                    "claims": {"aud": "aud", "iss": "iss"},
+                    "aud_required": "always",
+                }
+            ],
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes_aud_iss, "4")
+
+    with caplog.at_level("WARNING", logger="authorization_django.config"):
+        middleware(request)
+
+    assert request.is_authorized_for("scope1", "scope2")
+    assert any("Accessing deprecated setting JWKS_URL" in message for message in caplog.messages)
+    assert any(
+        "Accessing deprecated setting CHECK_CLAIMS" in message for message in caplog.messages
+    )
+
+
 def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
     """It is possible that the IdP rotates the keys. In that case the new keyset
     needs to be fetched from the JWKS url to be able to verify signed tokens.
@@ -436,7 +516,7 @@ def test_keycloak_token(middleware, tokendata_keycloak_two_scopes):
 
 def test_keycloak_token_check_claims(middleware, tokendata_keycloak_two_scopes):
     testsettings = TESTSETTINGS.copy()
-    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl"}
+    testsettings["CHECK_CLAIMS"] = {"aud": "aud", "iss": "https://iam.amsterdam.nl/"}
     reload_settings(testsettings)
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware(request)

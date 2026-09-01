@@ -3,9 +3,12 @@ authorization_middleware.config
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
-import types
+import logging
+from collections.abc import Iterator, Mapping
 
 from django.conf import settings as django_settings
+
+logger = logging.getLogger(__name__)
 
 # The Django settings key
 _settings_key = "DATAPUNT_AUTHZ"
@@ -15,6 +18,7 @@ _available_settings = {
     "JWKS": "",
     "JWKS_URL": "",
     "JWKS_URLS": [],
+    "TRUSTED_JWKS": [],
     "ALLOWED_SIGNING_ALGORITHMS": [
         "ES256",
         "ES384",
@@ -58,6 +62,62 @@ class NoRequiredScopesError(AuthzConfigurationError):
     """
 
 
+class SettingsProxy(Mapping):
+    """Read-only settings wrapper with deprecated-setting compatibility."""
+
+    _deprecated_keys = {"JWKS_URL", "JWKS_URLS", "CHECK_CLAIMS"}
+
+    def __init__(self, values: dict):
+        self._values = values
+        # Warn if any deprecated keys are present in the initial values
+        deprecated_keys = self._deprecated_keys & self._values.keys()
+        if deprecated_keys:
+            logger.warning(
+                "Deprecated settings present: %s. Please migrate to TRUSTED_JWKS.",
+                ", ".join(sorted(deprecated_keys)),
+            )
+
+    def __getitem__(self, key):
+        if key in self._deprecated_keys:
+            logger.warning("Accessing deprecated setting %s. Please migrate to TRUSTED_JWKS.", key)
+            trusted_value = self._trusted_jwks_value(key)
+            if trusted_value is not None:
+                return trusted_value
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def _trusted_jwks_value(self, key):
+        trusted_jwks = self._values.get("TRUSTED_JWKS") or []
+        if not trusted_jwks:
+            return None
+
+        if key == "JWKS_URL":
+            return trusted_jwks[0].get("jwks_url", self._values["JWKS_URL"])
+
+        if key == "JWKS_URLS":
+            return [
+                item["jwks_url"] for item in trusted_jwks if item.get("jwks_url")
+            ] or self._values["JWKS_URLS"]
+
+        if key == "CHECK_CLAIMS":
+            for item in trusted_jwks:
+                if item.get("aud_required") == "always" and "claims" in item:
+                    return item["claims"]
+
+        return None
+
+
 def init_settings():
     global _settings
     _settings = load_settings()
@@ -86,12 +146,12 @@ def load_settings():
     # Merge defaults with provided settings
     missing_defaults = _available_settings_keys - user_settings_keys
     user_settings.update({key: _available_settings[key] for key in missing_defaults})
+    settings_proxy = SettingsProxy(user_settings)
+    _validate_values(settings_proxy)
+    return settings_proxy
 
-    _validate_values(user_settings)
-    return types.MappingProxyType(user_settings)
 
-
-def _validate_values(user_settings: dict):
+def _validate_values(user_settings: SettingsProxy):
     if (
         not user_settings["JWKS"]
         and not user_settings["JWKS_URL"]
@@ -116,7 +176,7 @@ def _validate_values(user_settings: dict):
         )
 
     if isinstance(user_settings["MIN_SCOPE"], str):
-        user_settings["MIN_SCOPE"] = (user_settings["MIN_SCOPE"],)
+        user_settings._values["MIN_SCOPE"] = (user_settings["MIN_SCOPE"],)
 
     if not isinstance(user_settings["FORCED_ANONYMOUS_ROUTES"], (list, tuple, set)):
         raise AuthzConfigurationError(

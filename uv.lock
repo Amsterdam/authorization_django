@@ -510,7 +510,7 @@ wheels = [
 
 [[package]]
 name = "datapunt-authorization-django"
-version = "2.2.0"
+version = "2.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "django" },
