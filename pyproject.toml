@@ -67,7 +67,7 @@ addopts = [
     "--ds=tests.settings",
     "--cov=authorization_django",
     "--cov-report=term",
-    "--cov-fail-under=90",
+    "--cov-fail-under=96",
 ]
 
 # ==== Coverage ====
