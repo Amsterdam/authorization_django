@@ -127,10 +127,6 @@ def settings_with(**overrides):
     return settings
 
 
-def set_jwks(s):
-    reload_settings(settings_with(TRUSTED_JWKS=s))
-
-
 def use_settings(**overrides):
     reload_settings(settings_with(**overrides))
 
@@ -280,17 +276,6 @@ def tokendata_zero_scopes():
 
 
 @pytest.fixture
-def tokendata_azure_ad_two_scopes():
-    now = int(time.time())
-    return {
-        "iat": now,
-        "exp": now + 30,
-        "groups": ["test\\scope_1", "test\\scope_2"],
-        "unique_name": "test@tester.nl",
-    }
-
-
-@pytest.fixture
 def tokendata_entra_id_two_scopes():
     now = int(time.time())
     return {
@@ -371,7 +356,7 @@ def test_missing_conf():
 
 def test_bad_jwks():
     with pytest.raises(config.AuthzConfigurationError):
-        set_jwks([trusted_jwks_item(jwks="iamnotajwks")])
+        use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks="iamnotajwks")])
         authorization_middleware(None)
 
 
@@ -381,7 +366,7 @@ def test_jwks_from_url(requests_mock, tokendata_two_scopes):
     """
     jwks_url = "https://get.your.jwks.here/protocol/openid-connect/certs"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url)])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes, "4")
     middleware(request)
@@ -396,7 +381,7 @@ def test_jwks_from_url_entra_success(requests_mock, tokendata_two_scopes_aud_iss
     """
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    set_jwks([trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
     middleware(request)
@@ -409,7 +394,7 @@ def test_jwks_from_url_entra_error(requests_mock):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
     with pytest.raises(config.AuthzConfigurationError) as excinfo:
-        set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
+        use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url)])
     assert "When using Microsoft Entra ID" in str(excinfo.value)
 
 
@@ -421,8 +406,8 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
     entra_jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(kc_jwks_url, text=json.dumps(JWKS1))
     requests_mock.get(entra_jwks_url, text=json.dumps(JWKS1))
-    set_jwks(
-        [
+    use_settings(
+        TRUSTED_JWKS=[
             trusted_jwks_item(jwks_url=kc_jwks_url),
             trusted_jwks_item(jwks_url=entra_jwks_url, iss="iss", aud="aud"),
         ]
@@ -465,7 +450,7 @@ def test_jwks_from_url_list_uses_key_from_second_keyset(requests_mock, tokendata
 def test_trusted_jwks_used_for_runtime_access(requests_mock, tokendata_two_scopes_aud_iss, caplog):
     jwks_url = "https://login.microsoftonline.com/get.your.jwks.here/discovery/keys"
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
-    set_jwks([trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url, iss="iss", aud="aud")])
     middleware = authorization_middleware(_ok_view)
     request = create_request(tokendata_two_scopes_aud_iss, "4")
 
@@ -483,7 +468,7 @@ def test_reload_jwks_from_url(requests_mock, tokendata_two_scopes):
 
     # Create a request with a token signed with a key from JWKS2
     requests_mock.get(jwks_url, text=json.dumps(JWKS2))
-    set_jwks([trusted_jwks_item(jwks_url=jwks_url)])
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks_url=jwks_url)])
     request = create_request(tokendata_two_scopes, "6", signing_jwks=JWKS2)
     # Instantiate the middleware with JWKS1
     requests_mock.get(jwks_url, text=json.dumps(JWKS1))
@@ -537,7 +522,7 @@ def test_keycloak_token(tokendata_keycloak_two_scopes):
 
 
 def test_keycloak_token_check_claims(tokendata_keycloak_two_scopes):
-    set_jwks([trusted_jwks_item(jwks=JWKS1, iss="https://iam.amsterdam.nl/")])
+    use_settings(TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, iss="https://iam.amsterdam.nl/")])
     request = create_request(tokendata_keycloak_two_scopes, "1")
     middleware = authorization_middleware(_ok_view)
     middleware(request)
@@ -587,15 +572,6 @@ def test_entra_id_token_no_aud(tokendata_entra_id_two_scopes, requests_mock):
     middleware = authorization_middleware(_ok_view)
     response = middleware(request)
     assert response.status_code == 401
-
-
-@pytest.mark.xfail(reason="AD Token not supported for now")
-def test_azure_ad_token(middleware, tokendata_azure_ad_two_scopes):
-    request = create_request(tokendata_azure_ad_two_scopes, "1")
-    middleware(request)
-
-    assert request.get_token_subject == "test@tester.nl"
-    assert request.get_token_scopes == {"SCOPE/1", "SCOPE/2"}
 
 
 def test_valid_one_scope_request(middleware, tokendata_two_scopes):
@@ -982,7 +958,9 @@ def test_trusted_jwks_requires_a_single_key_source():
         reload_settings(settings_with(TRUSTED_JWKS=[{"claims": {"iss": "iss"}}]))
 
     with pytest.raises(config.AuthzConfigurationError):
-        set_jwks([trusted_jwks_item(jwks=JWKS1, jwks_url="https://example.com/jwks")])
+        use_settings(
+            TRUSTED_JWKS=[trusted_jwks_item(jwks=JWKS1, jwks_url="https://example.com/jwks")]
+        )
 
 
 def test_protected_settings_validate_container_and_field_types():
