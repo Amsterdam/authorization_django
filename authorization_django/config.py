@@ -4,44 +4,185 @@ authorization_middleware.config
 """
 
 import logging
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from typing import Literal
 
 from django.conf import settings as django_settings
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
+
+class Claims(BaseModel):
+    iss: str
+    aud: str | list[str] | None = None
+
+
+class TrustedJwksItem(BaseModel):
+    jwks_url: str
+    claims: Claims
+    aud_required: Literal["always", "never", "resource_access", "realm_access", "if_present"] = (
+        "always"
+    )
+
+    @model_validator(mode="after")
+    def validate_aud_required(self):
+        if self.aud_required != "never" and self.claims.aud is None:
+            raise ValueError("aud claim is required when aud_required is not 'never'")
+        return self
+
+
+class ProtectedResource(BaseModel):
+    route: str
+    methods: list[str]
+    scopes: list[str]
+
+    @field_validator("methods")
+    def validate_methods(cls, value):
+        for method in value:
+            if method not in VALID_METHODS:
+                str_methods = ", ".join(VALID_METHODS)
+                raise ValueError(
+                    f"Invalid value for methods: {method} in {SETTINGS_KEY}['PROTECTED']."
+                    f" Must be one of {str_methods}."
+                )
+        return value
+
+    @field_validator("scopes")
+    def validate_scopes(cls, value, info):
+        route = info.data.get("route", "<unknown>")
+        if not value:
+            raise NoRequiredScopesError(
+                f"You must require at least one scope for protected route {route} in {SETTINGS_KEY}['PROTECTED']"
+            )
+        return value
+
+    @classmethod
+    def from_raw(cls, resource):
+        if not isinstance(resource, tuple) or len(resource) != 3:
+            raise ProtectedRecourceSyntaxError(
+                f"Resource in {SETTINGS_KEY}['PROTECTED'] must be a tuple of length 3"
+            )
+
+        route, methods, scopes = resource
+        try:
+            protected_resource = cls.model_validate(
+                {
+                    "route": route,
+                    "methods": methods,
+                    "scopes": scopes,
+                }
+            )
+        except ValidationError as e:
+            message = e.errors()[0]["msg"]
+            raise AuthzConfigurationError(
+                f"Invalid {SETTINGS_KEY} configuration: {message}"
+            ) from e
+
+        return protected_resource
+
+
+class Settings(BaseModel):
+    JWKS: str | None = ""
+    JWKS_URL: str | None = ""
+    JWKS_URLS: list[str] = Field(default_factory=list)
+    CHECK_CLAIMS: dict = Field(default_factory=dict)
+    TRUSTED_JWKS: list[TrustedJwksItem] = Field(default_factory=list)
+    ALLOWED_SIGNING_ALGORITHMS: list[str] = Field(
+        default_factory=lambda: [
+            "ES256",
+            "ES384",
+            "ES512",
+            "RS256",
+            "RS384",
+            "RS512",
+        ]
+    )
+    MIN_SCOPE: tuple = Field(default_factory=tuple)
+    PROTECTED: list = Field(default_factory=list)
+    ALWAYS_OK: bool = False
+    FORCED_ANONYMOUS_ROUTES: tuple = Field(default_factory=tuple)
+    MIN_INTERVAL_KEYSET_UPDATE: int = 30
+    EXCEPTION_HANDLER: Callable | None = None
+
+    @property
+    def effective_jwks_url(self):
+        if self.TRUSTED_JWKS:
+            return self.TRUSTED_JWKS[0].jwks_url or self.JWKS_URL
+        return self.JWKS_URL
+
+    @property
+    def effective_jwks_urls(self):
+        if self.TRUSTED_JWKS:
+            trusted_urls = [item.jwks_url for item in self.TRUSTED_JWKS if item.jwks_url]
+            if trusted_urls:
+                return trusted_urls
+        return self.JWKS_URLS
+
+    @property
+    def effective_check_claims(self):
+        for item in self.TRUSTED_JWKS:
+            if item.aud_required == "always":
+                return item.claims.model_dump(exclude_none=True)
+        return self.CHECK_CLAIMS
+
+    @field_validator("MIN_SCOPE", mode="before")
+    def validate_min_scope(cls, v):
+        if type(v) is not tuple:
+            return (v,)
+        return v
+
+    @field_validator("FORCED_ANONYMOUS_ROUTES", mode="before")
+    def validate_forced_anonymous_routes(cls, value):
+        if not isinstance(value, (list, tuple, set)):
+            raise ValueError(
+                f"{SETTINGS_KEY}['FORCED_ANONYMOUS_ROUTES'] must be a list, tuple or set"
+            )
+        return tuple(value)
+
+    @field_validator("PROTECTED", mode="before")
+    def validate_protected(cls, value):
+        if not isinstance(value, (list, tuple, set)):
+            raise ValueError(f"{SETTINGS_KEY}['PROTECTED'] must be a list, tuple or set")
+        return [ProtectedResource.from_raw(resource) for resource in value]
+
+    @model_validator(mode="after")
+    def validate_model(self):
+        if not self.JWKS and not self.effective_jwks_url and not self.effective_jwks_urls:
+            raise AuthzConfigurationError(
+                f"{SETTINGS_KEY}['JWKS'], {SETTINGS_KEY}['JWKS_URL'] or {SETTINGS_KEY}['JWKS_URLS']  must be set, or all"
+            )
+
+        is_entra = (
+            self.effective_jwks_url
+            and self.effective_jwks_url.startswith("https://login.microsoftonline.com/")
+        ) or any(
+            url.startswith("https://login.microsoftonline.com/")
+            for url in self.effective_jwks_urls
+        )
+        if is_entra and {"iss", "aud"}.isdisjoint(self.effective_check_claims):
+            raise AuthzConfigurationError(
+                "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim"
+                f" in the {SETTINGS_KEY}['CHECK_CLAIMS'] setting"
+            )
+
+        for resource in self.PROTECTED:
+            for anonymous_route in self.FORCED_ANONYMOUS_ROUTES:
+                if resource.route.startswith(anonymous_route):
+                    raise ProtectedRouteConflictError(
+                        f"{resource.route} is configured in {SETTINGS_KEY}['PROTECTED'], but this would be "
+                        f"overruled by {anonymous_route} in {SETTINGS_KEY}['FORCED_ANONYMOUS_ROUTES']"
+                    )
+
+        return self
+
+
 # The Django settings key
-_settings_key = "DATAPUNT_AUTHZ"
+SETTINGS_KEY = "DATAPUNT_AUTHZ"
 
-# A list of all available settings, with default values
-_available_settings = {
-    "JWKS": "",
-    "JWKS_URL": "",
-    "JWKS_URLS": [],
-    "TRUSTED_JWKS": [],
-    "ALLOWED_SIGNING_ALGORITHMS": [
-        "ES256",
-        "ES384",
-        "ES512",
-        "RS256",
-        "RS384",
-        "RS512",
-    ],
-    "CHECK_CLAIMS": {},
-    "MIN_SCOPE": (),
-    "PROTECTED": [],
-    "ALWAYS_OK": False,
-    "FORCED_ANONYMOUS_ROUTES": (),
-    "MIN_INTERVAL_KEYSET_UPDATE": 30,
-    "EXCEPTION_HANDLER": None,
-}
-
-_methods_valid_options = ["*", "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "TRACE"]
+VALID_METHODS = ["*", "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "TRACE"]
 
 _settings = {}
-
-# Preprocessing: the set of all available configuration keys
-_available_settings_keys = set(_available_settings.keys())
 
 
 class AuthzConfigurationError(Exception):
@@ -67,8 +208,11 @@ class SettingsProxy(Mapping):
 
     _deprecated_keys = {"JWKS_URL", "JWKS_URLS", "CHECK_CLAIMS"}
 
-    def __init__(self, values: dict):
-        self._values = values
+    def __init__(self, settings: Settings):
+        self._values = settings.model_dump()
+        self._values["PROTECTED"] = [
+            (resource.route, resource.methods, resource.scopes) for resource in settings.PROTECTED
+        ]
         # Warn if any deprecated keys are present in the initial values
         deprecated_keys = self._deprecated_keys & self._values.keys()
         if deprecated_keys:
@@ -136,107 +280,11 @@ def load_settings():
     :return dict: settings
     """
     # Get the user-provided settings
-    user_settings = dict(getattr(django_settings, _settings_key, {}))
-    user_settings_keys = set(user_settings.keys())
+    user_settings = dict(getattr(django_settings, SETTINGS_KEY, {}))
 
-    # Check for unknown settings
-    unknown = user_settings_keys - _available_settings_keys
-    if unknown:
-        raise AuthzConfigurationError(f"Unknown {_settings_key} config params: {unknown}")
-    # Merge defaults with provided settings
-    missing_defaults = _available_settings_keys - user_settings_keys
-    user_settings.update({key: _available_settings[key] for key in missing_defaults})
-    settings_proxy = SettingsProxy(user_settings)
-    _validate_values(settings_proxy)
-    return settings_proxy
+    try:
+        settings = Settings.model_validate(user_settings, extra="forbid")
+    except ValidationError as e:
+        raise AuthzConfigurationError(f"Invalid {SETTINGS_KEY} configuration: {e}") from e
 
-
-def _validate_values(user_settings: SettingsProxy):
-    if (
-        not user_settings["JWKS"]
-        and not user_settings["JWKS_URL"]
-        and not user_settings["JWKS_URLS"]
-    ):
-        raise AuthzConfigurationError(
-            f"{_settings_key}['JWKS'], {_settings_key}['JWKS_URL'] or {_settings_key}['JWKS_URLS']  must be set, or all"
-        )
-
-    is_entra = (
-        user_settings["JWKS_URL"]
-        and user_settings["JWKS_URL"].startswith("https://login.microsoftonline.com/")
-    ) or any(
-        url.startswith("https://login.microsoftonline.com/") for url in user_settings["JWKS_URLS"]
-    )
-    if is_entra and {"iss", "aud"}.isdisjoint(user_settings["CHECK_CLAIMS"]):
-        # As tokens handed out by Entra ID can come from other instances,
-        # checking the issuer and audience is super important!
-        raise AuthzConfigurationError(
-            "When using Microsoft Entra ID, make sure to set an 'iss' and 'aud' claim"
-            f" in the {_settings_key}['CHECK_CLAIMS'] setting"
-        )
-
-    if isinstance(user_settings["MIN_SCOPE"], str):
-        user_settings._values["MIN_SCOPE"] = (user_settings["MIN_SCOPE"],)
-
-    if not isinstance(user_settings["FORCED_ANONYMOUS_ROUTES"], (list, tuple, set)):
-        raise AuthzConfigurationError(
-            f"{_settings_key}['FORCED_ANONYMOUS_ROUTES'] must be a list, tuple or set"
-        )
-
-    if not isinstance(user_settings["PROTECTED"], (list, tuple, set)):
-        raise AuthzConfigurationError(f"{_settings_key}['PROTECTED'] must be a list, tuple or set")
-
-    for resource in user_settings["PROTECTED"]:
-        if not isinstance(resource, tuple) or not len(resource) == 3:
-            raise ProtectedRecourceSyntaxError(
-                f"Resource in {_settings_key}['PROTECTED'] must be a tuple of length 3"
-            )
-
-        (route, methods, scopes) = resource
-        _validate_protected_route(route, user_settings)
-        _validate_protected_methods(methods)
-        _validate_protected_scopes(scopes, route)
-
-
-def _validate_protected_route(route, user_settings):
-    """Validate 'route' in PROTECTED block."""
-    if not isinstance(route, str):
-        raise AuthzConfigurationError(
-            f"Route in {_settings_key}['PROTECTED'] resource must be a string"
-        )
-
-    for aroute in user_settings["FORCED_ANONYMOUS_ROUTES"]:
-        if route.startswith(aroute):
-            raise ProtectedRouteConflictError(
-                f"{route} is configured in {_settings_key}['PROTECTED'], but this would be "
-                f"overruled by {aroute} in {_settings_key}['FORCED_ANONYMOUS_ROUTES']"
-            )
-
-
-def _validate_protected_methods(methods):
-    """Validate 'methods' in PROTECTED block."""
-    if not isinstance(methods, list):
-        raise AuthzConfigurationError(
-            f"Methods in {_settings_key}['PROTECTED'] resource must be a list"
-        )
-
-    for method in methods:
-        if method not in _methods_valid_options:
-            str_methods = ", ".join(_methods_valid_options)
-            raise AuthzConfigurationError(
-                f"Invalid value for methods: {method} in {_settings_key}['PROTECTED']."
-                f" Must be one of {str_methods}."
-            )
-
-
-def _validate_protected_scopes(scopes, route):
-    """Validate 'scopes' in PROTECTED block."""
-    if not isinstance(scopes, list):
-        raise AuthzConfigurationError(
-            f"Scopes in {_settings_key}['PROTECTED'] resource must be a list"
-        )
-
-    if not len(scopes) > 0:
-        raise NoRequiredScopesError(
-            f"You must require at least one scope for protected route {route} in {_settings_key}['PROTECTED']"
-        )
+    return SettingsProxy(settings)

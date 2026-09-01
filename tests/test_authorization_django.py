@@ -383,6 +383,7 @@ def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
         },
         {
             "jwks_url": "https://trusted-2.example/.well-known/jwks.json",
+            "claims": {"iss": "another-trusted-issuer"},
             "aud_required": "never",
         },
     ]
@@ -410,13 +411,13 @@ def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
         caplog.messages.count(
             "Accessing deprecated setting JWKS_URL. Please migrate to TRUSTED_JWKS."
         )
-        >= 2
+        >= 1
     )
     assert (
         caplog.messages.count(
             "Accessing deprecated setting JWKS_URLS. Please migrate to TRUSTED_JWKS."
         )
-        >= 2
+        >= 1
     )
     assert (
         caplog.messages.count(
