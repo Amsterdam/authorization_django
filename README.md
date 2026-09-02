@@ -206,6 +206,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v2.4.1
+  * Bugfix: handle both string and dict versions of jwks definitions.
 * v2.4.0
   * Make middleware use TRUSTED_JWKS by default; compose this from other settings if needed.
   * Allow jwks from file/dict in TRUSTED_JWKS rather than url for testing.
