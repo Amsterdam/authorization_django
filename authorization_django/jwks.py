@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections import defaultdict
@@ -62,7 +63,10 @@ class JWKSWrapper:
 
 def _load_jwks(keyset: JWKSet, jwks):
     try:
-        keyset.import_keyset(jwks)
+        if type(jwks) is str:
+            keyset.import_keyset(jwks)
+        else:
+            keyset.import_keyset(json.dumps(jwks))
     except JWException as e:
         raise AuthzConfigurationError("Failed to import keyset from settings") from e
     logger.info("Loaded JWKS from JWKS setting.")
