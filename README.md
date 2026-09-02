@@ -206,6 +206,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v2.4.2
+  * Bugfix: filter out None values from jwks definitions.
 * v2.4.1
   * Bugfix: handle both string and dict versions of jwks definitions.
 * v2.4.0
