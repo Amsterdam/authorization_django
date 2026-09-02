@@ -39,7 +39,7 @@ jobs:
 
       - name: Install Packages
         run: |
-          uv sync --python ${{ matrix.python }} --extra tests --no-default-groups
+          uv sync --python ${{ matrix.python }} --extra extended --no-default-groups
 
       - name: Run Tests
         run: |
