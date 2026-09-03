@@ -213,6 +213,9 @@ class SettingsProxy(Mapping):
 
     def __init__(self, settings: Settings):
         self._values = settings.model_dump()
+        self._values["TRUSTED_JWKS"] = [
+            item.model_dump(exclude_none=True) for item in settings.TRUSTED_JWKS
+        ]
         self._values["PROTECTED"] = [
             (resource.route, resource.methods, resource.scopes) for resource in settings.PROTECTED
         ]
