@@ -42,7 +42,7 @@ tests = [
     "requests_mock==1.12.1",
 ]
 extended = [
-    "djangorestframework==3.17.2",
+    "djangorestframework==3.18.0",
     "drf-spectacular==0.30.0",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
