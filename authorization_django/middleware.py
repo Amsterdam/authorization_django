@@ -162,13 +162,13 @@ class AuthorizationMiddleware:
             except JWTExpired as e:
                 logger.info("API authz problem: token expired %s", raw_jwt)
                 raise ExpiredTokenError from e
-            except JWTMissingKey:
-                raise  # for parse_token() to handle
             except (JWException, ValueError) as e:
-                # invalid signature, invalid claim, missing claim
+                # invalid signature, invalid claim, missing claim, missing key
                 error = e
                 continue
         logger.warning("API authz problem: %s", error)
+        if isinstance(error, JWTMissingKey):
+            raise error
         raise InvalidTokenError
 
     def get_claims(self, jwt: JWT):
