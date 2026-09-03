@@ -426,7 +426,6 @@ def test_jwks_from_url_list_uses_key_from_second_keyset(requests_mock, tokendata
     tokendata_two_scopes["iss"] = "second-issuer"
     reload_settings(
         {
-            "JWKS": None,
             "TRUSTED_JWKS": [
                 {
                     "jwks_url": first_jwks_url,
@@ -440,7 +439,7 @@ def test_jwks_from_url_list_uses_key_from_second_keyset(requests_mock, tokendata
         }
     )
     middleware = authorization_middleware(_ok_view)
-    request = create_request(tokendata_two_scopes, "6")
+    request = create_request(tokendata_two_scopes, "6", signing_jwks=JWKS2)
 
     middleware(request)
 
