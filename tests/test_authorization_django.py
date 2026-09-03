@@ -406,6 +406,35 @@ def test_jwks_from_url_list(requests_mock, tokendata_two_scopes_aud_iss):
     assert request.is_authorized_for("scope1", "scope2")
 
 
+def test_jwks_from_url_list_uses_key_from_second_keyset(requests_mock, tokendata_two_scopes):
+    first_jwks_url = "https://first.example/protocol/openid-connect/certs"
+    second_jwks_url = "https://second.example/protocol/openid-connect/certs"
+    requests_mock.get(first_jwks_url, text=json.dumps(JWKS1))
+    requests_mock.get(second_jwks_url, text=json.dumps(JWKS2))
+    tokendata_two_scopes["iss"] = "second-issuer"
+    reload_settings(
+        {
+            "JWKS": None,
+            "TRUSTED_JWKS": [
+                {
+                    "jwks_url": first_jwks_url,
+                    "claims": {"iss": "first-issuer"},
+                },
+                {
+                    "jwks_url": second_jwks_url,
+                    "claims": {"iss": "second-issuer"},
+                },
+            ],
+        }
+    )
+    middleware = authorization_middleware(_ok_view)
+    request = create_request(tokendata_two_scopes, "6")
+
+    middleware(request)
+
+    assert request.is_authorized_for("scope1", "scope2")
+
+
 def test_deprecated_settings_warn_and_trusted_jwks_takes_precedence(caplog):
     trusted_jwks = [
         {
