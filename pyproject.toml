@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "datapunt-authorization-django"
-version = "2.4.3"
+version = "3.0.0"
 description = "Datapunt authorization check for Django"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,7 @@ dependencies = [
     "requests>=2.34.2",
     "jwcrypto>=1.5.8",
     "pydantic>=2.13.5",
+    "django-environ>=0.14.0",
 ]
 
 [project.urls]
@@ -67,7 +68,7 @@ addopts = [
     "--ds=tests.settings",
     "--cov=authorization_django",
     "--cov-report=term",
-    "--cov-fail-under=84",
+    "--cov-fail-under=96",
 ]
 
 # ==== Coverage ====

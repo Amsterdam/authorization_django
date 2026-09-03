@@ -30,10 +30,10 @@ class JWKSWrapper:
         self._keyset: dict[str, JWKSet] = defaultdict(JWKSet)
         self._keyset_last_update = time.time()
 
-        for trusted_jwks_item in self._settings["TRUSTED_JWKS"]:
-            if url := trusted_jwks_item.get("jwks_url"):
+        for trusted_jwks_item in self._settings.TRUSTED_JWKS:
+            if url := trusted_jwks_item.jwks_url:
                 _load_jwks_from_url(self._keyset[url], url)
-            elif jwks := trusted_jwks_item.get("jwks"):
+            elif jwks := trusted_jwks_item.jwks:
                 _load_jwks(self._keyset["JWKS"], jwks)
 
         if not any(len(keyset["keys"]) > 0 for keyset in self._keyset.values()):
@@ -57,16 +57,13 @@ class JWKSWrapper:
         the url, we set a minimal interval between two checks.
         """
         current_time = time.time()
-        if current_time - self._keyset_last_update >= self._settings["MIN_INTERVAL_KEYSET_UPDATE"]:
+        if current_time - self._keyset_last_update >= self._settings.MIN_INTERVAL_KEYSET_UPDATE:
             self.init_keyset()
 
 
 def _load_jwks(keyset: JWKSet, jwks):
     try:
-        if type(jwks) is str:
-            keyset.import_keyset(jwks)
-        else:
-            keyset.import_keyset(json.dumps(jwks))
+        keyset.import_keyset(json.dumps(jwks))
     except JWException as e:
         raise AuthzConfigurationError("Failed to import keyset from settings") from e
     logger.info("Loaded JWKS from JWKS setting.")

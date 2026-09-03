@@ -206,6 +206,11 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v3.0.0
+  * Deprecated JWKS_URL(S)/CHECK_CLAIMS.
+  * Increase test coverage.
+  * Drop SettingsProxy as it is no longer needed.
+  * Add utility method for getting TRUSTED_JWKS from env variables.
 * v2.4.3
   * Bugfix: ensure all jwks entries are tried when keys are missing.
 * v2.4.2

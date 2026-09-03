@@ -46,14 +46,14 @@ class HasTokenScopes(BasePermission):
     message = "Required scopes not given in token."
 
     def __init__(self, *needed_scopes):
-        self.needed_scopes = frozenset(needed_scopes or get_settings()["MIN_SCOPE"])
+        self.needed_scopes = frozenset(needed_scopes or get_settings().MIN_SCOPE)
 
     def has_permission(self, request, view):
         """Check whether the user has all required scopes"""
         # This essentially does what request.is_authorized_for() does, without the logging.
         # In this scenario it's not clear whether this is the only permission check,
         # so falsely logging that access is granted is a bit premature.
-        return get_settings()["ALWAYS_OK"] or set(request.get_token_scopes).issuperset(
+        return get_settings().ALWAYS_OK or set(request.get_token_scopes).issuperset(
             self.needed_scopes
         )
 
