@@ -206,6 +206,8 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
+* v3.0.1
+  * Security release containing several package upgrades.
 * v3.0.0
   * Deprecated JWKS_URL(S)/CHECK_CLAIMS.
   * Increase test coverage.
