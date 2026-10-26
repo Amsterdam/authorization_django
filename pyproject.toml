@@ -4,10 +4,10 @@ build-backend = "uv_build"
 
 [project]
 name = "datapunt-authorization-django"
-version = "3.0.1"
+version = "3.1.0"
 description = "Datapunt authorization check for Django"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MPL-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Amsterdam Datapunt", email = "datapunt@amsterdam.nl" }]
@@ -17,7 +17,6 @@ classifiers = [
     "Natural Language :: English",
     "Topic :: System :: Systems Administration :: Authentication/Directory",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

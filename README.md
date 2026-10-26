@@ -1,7 +1,7 @@
 Datapunt Django Authorization
 =============================
 
-![python 3.10 onward](https://img.shields.io/badge/python-3.10%2C%203.11%2C%203.12%2C%203.13%2C%203.14-blue.svg)
+![python 3.11 onward](https://img.shields.io/badge/python-3.11%2C%203.12%2C%203.13%2C%203.14-blue.svg)
 ![Mozilla Public License Version 2.0](https://img.shields.io/badge/license-MPLv2.0-blue.svg)
 
 Django middleware that adds functionality to check authorization, based on JSON Web Tokens.
@@ -206,8 +206,9 @@ We use GitHub pull requests. If your PR should produce a new release of authoriz
 
 Changelog
 ---------
-* v3.0.1
+* v3.1.0
   * Security release containing several package upgrades.
+  * Drops support for python 3.10
 * v3.0.0
   * Deprecated JWKS_URL(S)/CHECK_CLAIMS.
   * Increase test coverage.
